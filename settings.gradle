@@ -1,0 +1,1 @@
+include ':app', ':libjingle_peerconnection', ':audio_device_java', ':base_java'

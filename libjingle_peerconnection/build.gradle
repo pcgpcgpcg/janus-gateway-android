@@ -1,0 +1,57 @@
+apply plugin: 'com.android.library'
+
+def compileNativeCode = "true" == rootProject.property("compile_native_code")
+
+android {
+    compileSdkVersion rootProject.ext.androidCompileSdkVersion
+
+    defaultConfig {
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode rootProject.ext.releaseVersionCode
+        versionName rootProject.ext.releaseVersionName
+
+        if (compileNativeCode) {
+            externalNativeBuild {
+                cmake {
+                    arguments '-DANDROID_TOOLCHAIN=clang', '-DANDROID_STL=c++_shared',
+                            "-DWEBRTC_REPO=${rootProject.property("webrtc_repo")}",
+                            "-DWEBRTC_BUILD_DIR=${rootProject.property("webrtc_build_dir")}"
+                    cppFlags '-std=c++14'
+                    abiFilters 'arm64-v8a'//, 'armeabi', 'armeabi-v7a', 'arm64-v8a', 'x86'
+                    //targets "protobuf_lite", "absl_base", "absl_optional", "absl_variant", "yuv", "ssl", "crypto", "event", "json", "srtp", "vpx", "opus", "rnnoise", "usrsctp"
+                }
+            }
+        } else {
+            sourceSets.main.jniLibs.srcDirs = ['prebuilt_libs']
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    if (compileNativeCode) {
+        externalNativeBuild {
+            cmake {
+                path 'CMakeLists.txt'
+            }
+        }
+    }
+    buildToolsVersion '27.0.3'
+}
+
+if (compileNativeCode) {
+    apply from: 'webrtc.gradle'
+}
+
+dependencies {
+    api project(':base_java')
+    api project(':audio_device_java')
+}

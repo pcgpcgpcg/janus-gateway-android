@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/AppRTC-Android.iml" filepath="$PROJECT_DIR$/AppRTC-Android.iml" />
+      <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
+      <module fileurl="file://$PROJECT_DIR$/audio_device_java/audio_device_java.iml" filepath="$PROJECT_DIR$/audio_device_java/audio_device_java.iml" />
+      <module fileurl="file://$PROJECT_DIR$/base_java/base_java.iml" filepath="$PROJECT_DIR$/base_java/base_java.iml" />
+      <module fileurl="file://$PROJECT_DIR$/libjingle_peerconnection/libjingle_peerconnection.iml" filepath="$PROJECT_DIR$/libjingle_peerconnection/libjingle_peerconnection.iml" />
+    </modules>
+  </component>
+</project>
