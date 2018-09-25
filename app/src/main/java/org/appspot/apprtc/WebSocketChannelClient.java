@@ -10,7 +10,6 @@
 package org.appspot.apprtc;
 
 import android.os.Handler;
-import javax.annotation.Nullable;
 import android.util.Log;
 import de.tavendo.autobahn.WebSocket.WebSocketConnectionObserver;
 import de.tavendo.autobahn.WebSocketConnection;
@@ -19,15 +18,6 @@ import de.tavendo.autobahn.WebSocketOptions;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-
-import org.appspot.apprtc.util.AppRTCUtils;
-import org.appspot.apprtc.util.AsyncHttpURLConnection;
-import org.appspot.apprtc.util.AsyncHttpURLConnection.AsyncHttpEvents;
-import org.json.JSONException;
-import org.json.JSONObject;
 
 /**
  * WebSocket client implementation.
@@ -37,12 +27,13 @@ import org.json.JSONObject;
  * All events are dispatched on the same thread.
  */
 public class WebSocketChannelClient {
-    private static final String TAG = "WSChannelRTCClient";
+    private static final String TAG = "WebSocketChannelClient";
     private static final int CLOSE_TIMEOUT = 1000;
-    private final WebSocketChannelJEvents events;
+    private final WebSocketChannelEvents events;
     private final Handler handler;
     private WebSocketConnection ws;
     private String wsServerUrl;
+    private String [] subProtocols;
     private WebSocketConnectionState state;
     // Do not remove this member variable. If this is removed, the observer gets garbage collected and
     // this causes test breakages.
@@ -59,22 +50,18 @@ public class WebSocketChannelClient {
      * Callback interface for messages delivered on WebSocket.
      * All events are dispatched from a looper executor thread.
      */
-    public interface WebSocketChannelJEvents {
+    public interface WebSocketChannelEvents {
         void onWebSocketMessage(final String message);
         void onWebSocketOpen();
         void onWebSocketClose();
         void onWebSocketError(final String description);
     }
 
-    //add an interface to save function to the hashmap,hacked by pcg
-    public interface WebSocketChannelTranscationMsg{
-        void handleMsg(final String msg);
-    }
-
-    public WebSocketChannelClient(Handler handler, WebSocketChannelJEvents events) {
+    public WebSocketChannelClient(Handler handler, WebSocketChannelEvents events) {
         this.handler = handler;
         this.events = events;
         state = WebSocketConnectionState.NEW;
+        wsServerUrl = "";
     }
 
     public WebSocketConnectionState getState() {
@@ -82,13 +69,15 @@ public class WebSocketChannelClient {
     }
 
     //for janus,all run on websocket without http rest operation.
-    public void connect(final String wsUrl,final String [] subProtocols){
+    public void connect(final String wsUrl, final String [] subProtocols){
         checkIfCalledOnValidThread();
+
         if (state != WebSocketConnectionState.NEW) {
             Log.e(TAG, "WebSocket is already connected.");
             return;
         }
         wsServerUrl = wsUrl;
+        this.subProtocols = subProtocols;
         closeEvent = false;
 
         Log.d(TAG, "Connecting WebSocket to: " + wsUrl);
@@ -105,22 +94,26 @@ public class WebSocketChannelClient {
 
     public void send(String message){
         checkIfCalledOnValidThread();
-        if(state==WebSocketConnectionState.CONNECTED){
-            ws.sendTextMessage(message);
+
+        if (state != WebSocketConnectionState.CONNECTED) {
+            Log.w(TAG, "WebSocket send message in non-connection state. State: " + state);
+            return;
         }
-        else{
-            Log.d(TAG,"send message in non connected state!");//FIXME
-        }
+
+        Log.d(TAG, "C->WSS: " + message);
+        ws.sendTextMessage(message);
     }
 
 
     public void disconnect(boolean waitForComplete) {
         checkIfCalledOnValidThread();
+
         Log.d(TAG, "Disconnect WebSocket. State: " + state);
         // Close WebSocket in CONNECTED or ERROR states only.
         if (state == WebSocketConnectionState.CONNECTED || state == WebSocketConnectionState.ERROR) {
             ws.disconnect();
             state = WebSocketConnectionState.CLOSED;
+
             // Wait for websocket close event to prevent websocket library from
             // sending any pending messages to deleted looper thread.
             if (waitForComplete) {

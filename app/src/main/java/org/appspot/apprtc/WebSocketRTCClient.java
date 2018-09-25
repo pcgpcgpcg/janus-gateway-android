@@ -11,9 +11,8 @@
 package org.appspot.apprtc;
 
 import javax.annotation.Nullable;
-import org.appspot.apprtc.WebSocketChannelClient.WebSocketChannelJEvents;
+import org.appspot.apprtc.WebSocketChannelClient.WebSocketChannelEvents;
 import org.appspot.apprtc.WebSocketChannelClient.WebSocketConnectionState;
-import org.appspot.apprtc.WebSocketChannelClient.WebSocketChannelTranscationMsg;
 import org.appspot.apprtc.util.AppRTCUtils;
 import org.appspot.apprtc.util.AsyncHttpURLConnection;
 import org.appspot.apprtc.util.AsyncHttpURLConnection.AsyncHttpEvents;
@@ -45,7 +44,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Messages to other party (with local Ice candidates and answer SDP) can
  * be sent after WebSocket connection is established.
  */
-public class WebSocketRTCClient implements WebSocketChannelJEvents {
+public class WebSocketRTCClient implements WebSocketChannelEvents {
     private static final String TAG = "WSRTCClient";
     private static final String ROOM_JOIN = "join";
     private static final String ROOM_MESSAGE = "message";
