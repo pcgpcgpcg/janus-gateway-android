@@ -49,7 +49,6 @@ public class ConnectActivity extends Activity {
 
   private ImageButton addFavoriteButton;
   private EditText roomEditText;
-  private ListView roomListView;
   private SharedPreferences sharedPref;
   private String keyprefResolution;
   private String keyprefFps;
@@ -60,8 +59,6 @@ public class ConnectActivity extends Activity {
   private String keyprefRoomServerUrl;
   private String keyprefRoom;
   private String keyprefRoomList;
-  private ArrayList<String> roomList;
-  private ArrayAdapter<String> adapter;
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
@@ -95,10 +92,6 @@ public class ConnectActivity extends Activity {
     });
     roomEditText.requestFocus();
 
-    roomListView = findViewById(R.id.room_listview);
-    roomListView.setEmptyView(findViewById(android.R.id.empty));
-    roomListView.setOnItemClickListener(roomListClickListener);
-    registerForContextMenu(roomListView);
     ImageButton connectButton = findViewById(R.id.connect_button);
     connectButton.setOnClickListener(connectListener);
     addFavoriteButton = findViewById(R.id.add_favorite_button);
@@ -122,32 +115,6 @@ public class ConnectActivity extends Activity {
     return true;
   }
 
-  @Override
-  public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
-    if (v.getId() == R.id.room_listview) {
-      AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) menuInfo;
-      menu.setHeaderTitle(roomList.get(info.position));
-      String[] menuItems = getResources().getStringArray(R.array.roomListContextMenu);
-      for (int i = 0; i < menuItems.length; i++) {
-        menu.add(Menu.NONE, i, i, menuItems[i]);
-      }
-    } else {
-      super.onCreateContextMenu(menu, v, menuInfo);
-    }
-  }
-
-  @Override
-  public boolean onContextItemSelected(MenuItem item) {
-    if (item.getItemId() == REMOVE_FAVORITE_INDEX) {
-      AdapterView.AdapterContextMenuInfo info =
-          (AdapterView.AdapterContextMenuInfo) item.getMenuInfo();
-      roomList.remove(info.position);
-      adapter.notifyDataSetChanged();
-      return true;
-    }
-
-    return super.onContextItemSelected(item);
-  }
 
   @Override
   public boolean onOptionsItemSelected(MenuItem item) {
@@ -167,37 +134,18 @@ public class ConnectActivity extends Activity {
   @Override
   public void onPause() {
     super.onPause();
-    String room = roomEditText.getText().toString();
+    //save configure here
+    /*String room = roomEditText.getText().toString();
     String roomListJson = new JSONArray(roomList).toString();
     SharedPreferences.Editor editor = sharedPref.edit();
     editor.putString(keyprefRoom, room);
     editor.putString(keyprefRoomList, roomListJson);
-    editor.commit();
+    editor.commit();*/
   }
 
   @Override
   public void onResume() {
     super.onResume();
-    String room = sharedPref.getString(keyprefRoom, "");
-    roomEditText.setText(room);
-    roomList = new ArrayList<>();
-    String roomListJson = sharedPref.getString(keyprefRoomList, null);
-    if (roomListJson != null) {
-      try {
-        JSONArray jsonArray = new JSONArray(roomListJson);
-        for (int i = 0; i < jsonArray.length(); i++) {
-          roomList.add(jsonArray.get(i).toString());
-        }
-      } catch (JSONException e) {
-        Log.e(TAG, "Failed to load room list: " + e.toString());
-      }
-    }
-    adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, roomList);
-    roomListView.setAdapter(adapter);
-    if (adapter.getCount() > 0) {
-      roomListView.requestFocus();
-      roomListView.setItemChecked(0, true);
-    }
   }
 
   @Override
@@ -556,23 +504,10 @@ public class ConnectActivity extends Activity {
     return false;
   }
 
-  private final AdapterView.OnItemClickListener roomListClickListener =
-      new AdapterView.OnItemClickListener() {
-        @Override
-        public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
-          String roomId = ((TextView) view).getText().toString();
-          connectToRoom(roomId, false, false, false, 0);
-        }
-      };
-
   private final OnClickListener addFavoriteListener = new OnClickListener() {
     @Override
     public void onClick(View view) {
-      String newRoom = roomEditText.getText().toString();
-      if (newRoom.length() > 0 && !roomList.contains(newRoom)) {
-        adapter.add(newRoom);
-        adapter.notifyDataSetChanged();
-      }
+
     }
   };
 

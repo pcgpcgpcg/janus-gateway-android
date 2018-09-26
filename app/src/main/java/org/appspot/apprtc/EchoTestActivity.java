@@ -65,10 +65,10 @@ import org.webrtc.VideoSink;
 import org.appspot.apprtc.janus.JanusRTCInterface;
 
 /**
- * Activity for JanusVideoRoom setup, call waiting
+ * Activity for JanusEchoTest setup, call waiting
  * and call view.
  */
-public class VideoRoomActivity extends Activity implements PeerConnectionClient.PeerConnectionEvents,
+public class EchoTestActivity extends Activity implements PeerConnectionClient.PeerConnectionEvents,
         CallFragment.OnCallEvents,
         JanusRTCInterface{
     private static final String TAG = "CallRTCClient";
@@ -162,17 +162,11 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
     @Nullable
     private PeerConnectionClient peerConnectionClient = null;
     @Nullable
-    private VideoRoomClient videoRoomClient;
+    private EchoTestClient echoTestClient;
     @Nullable
     private AppRTCAudioManager audioManager = null;
     @Nullable
     private SurfaceViewRenderer pipRenderer;
-    @Nullable
-    private SurfaceViewRenderer pipRenderer2;
-    @Nullable
-    private SurfaceViewRenderer pipRenderer3;
-    @Nullable
-    private SurfaceViewRenderer pipRenderer4;
     @Nullable
     private SurfaceViewRenderer fullscreenRenderer;
     @Nullable
@@ -219,7 +213,6 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
 
         // Create UI controls.
         pipRenderer = findViewById(R.id.pip_video_view);
-        pipRenderer2=findViewById(R.id.pip_video_view2);
         fullscreenRenderer = findViewById(R.id.fullscreen_video_view);
         callFragment = new CallFragment();
         hudFragment = new HudFragment();
@@ -249,8 +242,6 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
         // Create video renderers.
         pipRenderer.init(eglBase.getEglBaseContext(), null);
         pipRenderer.setScalingType(ScalingType.SCALE_ASPECT_FIT);
-        pipRenderer2.init(eglBase.getEglBaseContext(), null);
-        pipRenderer2.setScalingType(ScalingType.SCALE_ASPECT_FIT);
         String saveRemoteVideoToFile = intent.getStringExtra(EXTRA_SAVE_REMOTE_VIDEO_TO_FILE);
 
         // When saveRemoteVideoToFile is set we save the video from the remote to a file.
@@ -271,8 +262,6 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
 
         pipRenderer.setZOrderMediaOverlay(true);
         pipRenderer.setEnableHardwareScaler(true /* enabled */);
-        pipRenderer2.setZOrderMediaOverlay(true);
-        pipRenderer2.setEnableHardwareScaler(true /* enabled */);
         fullscreenRenderer.setEnableHardwareScaler(false /* enabled */);
         // Start with local feed in fullscreen and swap it to the pip when the call is connected.
         setSwappedFeeds(true /* isSwappedFeeds */);
@@ -349,8 +338,8 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
 
         Log.d(TAG, "VIDEO_FILE: '" + intent.getStringExtra(EXTRA_VIDEO_FILE_AS_CAMERA) + "'");
 
-        //Create connection client.Use videoRoomClient to connect to Janus Webrtc Gateway.
-        videoRoomClient = new VideoRoomClient(this);
+        //Create connection client.Use echoTestClient to connect to Janus Webrtc Gateway.
+        echoTestClient = new EchoTestClient(this);
 
         // Create connection parameters.
         String urlParameters = intent.getStringExtra(EXTRA_URLPARAMETERS);
@@ -391,7 +380,7 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
 
         // Create peer connection client.
         peerConnectionClient = new PeerConnectionClient(
-                getApplicationContext(), eglBase, peerConnectionParameters, VideoRoomActivity.this);
+                getApplicationContext(), eglBase, peerConnectionParameters, EchoTestActivity.this);
         PeerConnectionFactory.Options options = new PeerConnectionFactory.Options();
         peerConnectionClient.createPeerConnectionFactory(options);
 
@@ -587,14 +576,14 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
     }
 
     private void startCall(final String roomUrl) {
-        if (videoRoomClient == null) {
+        if (echoTestClient == null) {
             Log.e(TAG, "AppRTC client is not allocated for a call.");
             return;
         }
         callStartedTimeMs = System.currentTimeMillis();
 
         // Start room connection.
-        videoRoomClient.connectToRoom(roomUrl);
+        echoTestClient.connectToRoom(roomUrl);
 
         // Create and audio manager that will take care of audio routing,
         // audio modes, audio device enumeration etc.
@@ -640,17 +629,13 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
         activityRunning = false;
         remoteProxyRenderer.setTarget(null);
         localProxyVideoSink.setTarget(null);
-        if (videoRoomClient != null) {
-            videoRoomClient.disconnectFromRoom();
-            videoRoomClient = null;
+        if (echoTestClient != null) {
+            echoTestClient.disconnectFromRoom();
+            echoTestClient = null;
         }
         if (pipRenderer != null) {
             pipRenderer.release();
             pipRenderer = null;
-        }
-        if (pipRenderer2 != null) {
-            pipRenderer2.release();
-            pipRenderer2 = null;
         }
         if (videoFileRenderer != null) {
             videoFileRenderer.release();
@@ -756,7 +741,6 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
         this.isSwappedFeeds = isSwappedFeeds;
         localProxyVideoSink.setTarget(isSwappedFeeds ? fullscreenRenderer : pipRenderer);
         remoteProxyRenderer.setTarget(isSwappedFeeds ? pipRenderer : fullscreenRenderer);
-        remoteProxyRenderer2.setTarget(pipRenderer2);
         fullscreenRenderer.setMirror(isSwappedFeeds);
         //pipRenderer.setMirror(!isSwappedFeeds);
     }
@@ -771,13 +755,13 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (videoRoomClient != null) {
+                if (echoTestClient != null) {
                     logAndToast("Sending " + sdp.type + ", delay=" + delta + "ms");
                     if(sdp.type.equals(SessionDescription.Type.OFFER)){
-                        videoRoomClient.publisherCreateOffer(handleId, sdp);
+                        echoTestClient.publisherCreateOffer(handleId, sdp);
                     }
                     else{
-                        videoRoomClient.subscriberCreateAnswer(handleId,sdp);
+                        echoTestClient.subscriberCreateAnswer(handleId,sdp);
                     }
 
                 }
@@ -796,10 +780,10 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
             @Override
             public void run() {
                 if (candidate != null) {
-                    videoRoomClient.trickleCandidate(handleId,candidate);
+                    echoTestClient.trickleCandidate(handleId,candidate);
                 }
                 else{
-                    videoRoomClient.trickleCandidateComplete(handleId);
+                    echoTestClient.trickleCandidateComplete(handleId);
                 }
             }
         });
@@ -810,7 +794,7 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (videoRoomClient != null) {
+                if (echoTestClient != null) {
                     //WebSocketRTCClient.sendLocalIceCandidateRemovals(candidates);
                 }
             }
@@ -923,10 +907,10 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
         peerConnectionClient.createPeerConnection(
                 localProxyVideoSink, remoteSinks, videoCapturer,handleId);
 
-            logAndToast("Creating OFFER...");
-            // Create offer. Offer SDP will be sent to answering client in
-            // PeerConnectionEvents.onLocalDescription event.
-            peerConnectionClient.createOffer(handleId);
+        logAndToast("Creating OFFER...");
+        // Create offer. Offer SDP will be sent to answering client in
+        // PeerConnectionEvents.onLocalDescription event.
+        peerConnectionClient.createOffer(handleId);
     }
 
     public void onPublisherRemoteJsepInternal(final BigInteger handleId,final JSONObject jsep){
@@ -946,4 +930,5 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
         logAndToast("Creating ANSWER...");
     }
 }
+
 
