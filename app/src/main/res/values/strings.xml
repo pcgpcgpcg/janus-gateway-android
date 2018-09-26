@@ -1,11 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">AppRTC</string>
-    <string name="settings_name" translatable="false">AppRTC Settings</string>
+    <string name="app_name" translatable="false">TopRTC</string>
+    <string name="settings_name" translatable="false">TopRTC Settings</string>
     <string name="disconnect_call">Disconnect Call</string>
     <string name="room_description">
-        Please enter a room name. Room names are shared with everyone, so think
-        of something unique and send it to a friend.
+        TopRTC is the best RTC SOLUTION in the world. Designed by Dr JieDing and Dr Pcg.
+    </string>
+    <string name="loopback">
+        视频回环
+    </string>
+    <string name="loopback_desc">
+        视频发送到服务器,服务器接收视频后,原样返回
+    </string>
+    <string name="live_streaming">
+        视频直播
+    </string>
+    <string name="live_streaming_desc">
+        低延迟、支持弱网自适应的全新一代直播,延迟可达300ms以内
+    </string>
+    <string name="voice_ptt">
+        语音集群
+    </string>
+    <string name="voice_ptt_desc">
+        新一代语音集群对讲,与地图整合,支持千人PTT语音组,更好的语音质量
+    </string>
+    <string name="video_meet">
+        视频会议
+    </string>
+    <string name="video_meet_desc">
+        小组视频会议,适用于紧急调度指挥的多方协商
+    </string>
+    <string name="instant_message">
+        IM演示
+    </string>
+    <string name="instant_message_desc">
+        类微信的即时通讯功能,给你同样的用户体验
     </string>
     <string name="favorites">Favorites</string>
     <string name="no_favorites">No favorites</string>
