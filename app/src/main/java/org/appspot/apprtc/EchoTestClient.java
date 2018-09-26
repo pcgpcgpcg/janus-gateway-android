@@ -222,7 +222,7 @@ public class EchoTestClient implements WebSocketChannelEvents {
         JSONObject msg = new JSONObject();
         try {
             msg.putOpt("janus", "attach");
-            msg.putOpt("plugin", "janus.plugin.videoroom");
+            msg.putOpt("plugin", "janus.plugin.echotest");
             msg.putOpt("transaction", transactionID);
             msg.putOpt("session_id", sessionId);
         } catch (JSONException e) {

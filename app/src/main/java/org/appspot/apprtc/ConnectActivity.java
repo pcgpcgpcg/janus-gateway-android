@@ -19,7 +19,6 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.util.Log;
-import android.view.ContextMenu;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -27,16 +26,16 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.inputmethod.EditorInfo;
 import android.webkit.URLUtil;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ImageButton;
-import android.widget.ListView;
 import android.widget.TextView;
-import java.util.ArrayList;
 import java.util.Random;
 import org.json.JSONArray;
 import org.json.JSONException;
+
+import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.CardView;
+import android.widget.Toast;
 
 /**
  * Handles the initial setup where the user selects which room to join.
@@ -49,6 +48,7 @@ public class ConnectActivity extends Activity {
 
   private ImageButton addFavoriteButton;
   private EditText roomEditText;
+  private CardView mCardViewLoopBack;
   private SharedPreferences sharedPref;
   private String keyprefResolution;
   private String keyprefFps;
@@ -58,7 +58,6 @@ public class ConnectActivity extends Activity {
   private String keyprefAudioBitrateValue;
   private String keyprefRoomServerUrl;
   private String keyprefRoom;
-  private String keyprefRoomList;
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
@@ -75,7 +74,6 @@ public class ConnectActivity extends Activity {
     keyprefAudioBitrateValue = getString(R.string.pref_startaudiobitratevalue_key);
     keyprefRoomServerUrl = getString(R.string.pref_room_server_url_key);
     keyprefRoom = getString(R.string.pref_room_key);
-    keyprefRoomList = getString(R.string.pref_room_list_key);
 
     setContentView(R.layout.activity_connect);
 
@@ -96,6 +94,15 @@ public class ConnectActivity extends Activity {
     connectButton.setOnClickListener(connectListener);
     addFavoriteButton = findViewById(R.id.add_favorite_button);
     addFavoriteButton.setOnClickListener(addFavoriteListener);
+
+    mCardViewLoopBack=(CardView)findViewById(R.id.card_view_loopback);
+    mCardViewLoopBack.setOnClickListener(new View.OnClickListener() {
+      @Override
+      public void onClick(View v) {
+        Toast.makeText(ConnectActivity.this, "go to loopback test!", Toast.LENGTH_LONG).show();
+        connectToRoom(null, false, true, false, 0);
+      }
+    });
 
     // If an implicit VIEW intent is launching the app, go directly to that URL.
     final Intent intent = getIntent();
@@ -409,7 +416,7 @@ public class ConnectActivity extends Activity {
     Log.d(TAG, "Connecting to room " + roomId + " at URL " + roomUrl);
     if (validateUrl(roomUrl)) {
       Uri uri = Uri.parse(roomUrl);
-      Intent intent = new Intent(this, VideoRoomActivity.class);
+      Intent intent = new Intent(this, EchoTestActivity.class);
       intent.setData(uri);
       intent.putExtra(VideoRoomActivity.EXTRA_ROOMID, roomId);
       intent.putExtra(VideoRoomActivity.EXTRA_LOOPBACK, loopback);
@@ -444,14 +451,6 @@ public class ConnectActivity extends Activity {
 
       intent.putExtra(VideoRoomActivity.EXTRA_DATA_CHANNEL_ENABLED, dataChannelEnabled);
 
-      if (dataChannelEnabled) {
-        intent.putExtra(VideoRoomActivity.EXTRA_ORDERED, ordered);
-        intent.putExtra(VideoRoomActivity.EXTRA_MAX_RETRANSMITS_MS, maxRetrMs);
-        intent.putExtra(VideoRoomActivity.EXTRA_MAX_RETRANSMITS, maxRetr);
-        intent.putExtra(VideoRoomActivity.EXTRA_PROTOCOL, protocol);
-        intent.putExtra(VideoRoomActivity.EXTRA_NEGOTIATED, negotiated);
-        intent.putExtra(VideoRoomActivity.EXTRA_ID, id);
-      }
 
       if (useValuesFromIntent) {
         if (getIntent().hasExtra(VideoRoomActivity.EXTRA_VIDEO_FILE_AS_CAMERA)) {
