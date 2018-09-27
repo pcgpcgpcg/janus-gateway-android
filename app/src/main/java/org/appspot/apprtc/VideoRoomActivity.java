@@ -162,7 +162,7 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
     @Nullable
     private PeerConnectionClient peerConnectionClient = null;
     @Nullable
-    private WebSocketRTCClient WebSocketRTCClient;
+    private VideoRoomClient videoRoomClient;
     @Nullable
     private AppRTCAudioManager audioManager = null;
     @Nullable
@@ -349,8 +349,8 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
 
         Log.d(TAG, "VIDEO_FILE: '" + intent.getStringExtra(EXTRA_VIDEO_FILE_AS_CAMERA) + "'");
 
-        //Create connection client.Use WebSocketRTCClient to connect to Janus Webrtc Gateway.
-        WebSocketRTCClient = new WebSocketRTCClient(this);
+        //Create connection client.Use videoRoomClient to connect to Janus Webrtc Gateway.
+        videoRoomClient = new VideoRoomClient(this);
 
         // Create connection parameters.
         String urlParameters = intent.getStringExtra(EXTRA_URLPARAMETERS);
@@ -587,14 +587,14 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
     }
 
     private void startCall(final String roomUrl) {
-        if (WebSocketRTCClient == null) {
+        if (videoRoomClient == null) {
             Log.e(TAG, "AppRTC client is not allocated for a call.");
             return;
         }
         callStartedTimeMs = System.currentTimeMillis();
 
         // Start room connection.
-        WebSocketRTCClient.connectToRoom(roomUrl);
+        videoRoomClient.connectToRoom(roomUrl);
 
         // Create and audio manager that will take care of audio routing,
         // audio modes, audio device enumeration etc.
@@ -640,9 +640,9 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
         activityRunning = false;
         remoteProxyRenderer.setTarget(null);
         localProxyVideoSink.setTarget(null);
-        if (WebSocketRTCClient != null) {
-            WebSocketRTCClient.disconnectFromRoom();
-            WebSocketRTCClient = null;
+        if (videoRoomClient != null) {
+            videoRoomClient.disconnectFromRoom();
+            videoRoomClient = null;
         }
         if (pipRenderer != null) {
             pipRenderer.release();
@@ -771,13 +771,13 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (WebSocketRTCClient != null) {
+                if (videoRoomClient != null) {
                     logAndToast("Sending " + sdp.type + ", delay=" + delta + "ms");
                     if(sdp.type.equals(SessionDescription.Type.OFFER)){
-                        WebSocketRTCClient.publisherCreateOffer(handleId, sdp);
+                        videoRoomClient.publisherCreateOffer(handleId, sdp);
                     }
                     else{
-                        WebSocketRTCClient.subscriberCreateAnswer(handleId,sdp);
+                        videoRoomClient.subscriberCreateAnswer(handleId,sdp);
                     }
 
                 }
@@ -796,10 +796,10 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
             @Override
             public void run() {
                 if (candidate != null) {
-                    WebSocketRTCClient.trickleCandidate(handleId,candidate);
+                    videoRoomClient.trickleCandidate(handleId,candidate);
                 }
                 else{
-                    WebSocketRTCClient.trickleCandidateComplete(handleId);
+                    videoRoomClient.trickleCandidateComplete(handleId);
                 }
             }
         });
@@ -810,7 +810,7 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (WebSocketRTCClient != null) {
+                if (videoRoomClient != null) {
                     //WebSocketRTCClient.sendLocalIceCandidateRemovals(candidates);
                 }
             }
