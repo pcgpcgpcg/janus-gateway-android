@@ -1,9 +1,6 @@
 package org.appspot.apprtc.janus;
 
-
 import org.json.JSONObject;
-
-
 
 public class JanusTransaction {
     public interface TransactionCallbackSuccess{
@@ -13,7 +10,7 @@ public class JanusTransaction {
     public interface TransactionCallbackError{
         void error(JSONObject jo);
     }
-    public String tid;
+    public String transactionId;
     public TransactionCallbackSuccess success;
     public TransactionCallbackError error;
 }

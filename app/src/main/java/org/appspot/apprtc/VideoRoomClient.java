@@ -10,22 +10,20 @@
 
 package org.appspot.apprtc;
 
-import javax.annotation.Nullable;
+
 import org.appspot.apprtc.WebSocketChannelClient.WebSocketChannelEvents;
-import org.appspot.apprtc.WebSocketChannelClient.WebSocketConnectionState;
-import org.appspot.apprtc.util.AppRTCUtils;
-import org.appspot.apprtc.util.AsyncHttpURLConnection;
-import org.appspot.apprtc.util.AsyncHttpURLConnection.AsyncHttpEvents;
 import org.appspot.apprtc.janus.JanusHandle;
-import org.appspot.apprtc.janus.JanusRTCInterface;
-import org.appspot.apprtc.janus.JanusTransaction;
+import org.appspot.apprtc.janus.JanusRTCEvents;
+import org.appspot.apprtc.janus.JanusCommon.JanusConnectionParameters;
+import org.appspot.apprtc.janus.JanusCommon.ServerState;
+
 
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.text.TextUtils;
 import android.util.Log;
 
-import org.json.JSONArray;
+import org.appspot.apprtc.janus.JanusTransaction;
+import org.appspot.apprtc.util.AppRTCUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.webrtc.IceCandidate;
@@ -45,28 +43,24 @@ import java.util.concurrent.ConcurrentHashMap;
  * be sent after WebSocket connection is established.
  */
 public class VideoRoomClient implements WebSocketChannelEvents {
-    private static final String TAG = "WSRTCClient";
-    private static final String ROOM_JOIN = "join";
-    private static final String ROOM_MESSAGE = "message";
-    private static final String ROOM_LEAVE = "leave";
 
-    private enum ConnectionState { NEW, CONNECTED, CLOSED, ERROR }
+    private static final String TAG = "VideoRoomClient";
 
     private final Handler handler;
-    private JanusRTCInterface rtcInterfaces;
+    private JanusRTCEvents events;
     private WebSocketChannelClient wsClient;
-    private ConnectionState roomState;
-
+    private JanusConnectionParameters connectionParameters;
+    private ServerState state;
+    private ConcurrentHashMap<String, JanusTransaction> transactionMap = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<BigInteger, JanusHandle> handleMap = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<BigInteger, JanusHandle> feedMap = new ConcurrentHashMap<>();
     private BigInteger sessionId;
 
-    //采用线程安全的hashmap
-    private ConcurrentHashMap<String, JanusTransaction> transactions = new ConcurrentHashMap<>();
-    private ConcurrentHashMap<BigInteger, JanusHandle> handles = new ConcurrentHashMap<>();
-    private ConcurrentHashMap<BigInteger, JanusHandle> feeds = new ConcurrentHashMap<>();
+    public VideoRoomClient(JanusRTCEvents events) {
+        this.events = events;
+        this.sessionId = BigInteger.ZERO;
+        this.state = ServerState.NEW;
 
-    public VideoRoomClient(JanusRTCInterface interfaces) {
-        this.rtcInterfaces=interfaces;
-        roomState = ConnectionState.NEW;
         final HandlerThread handlerThread = new HandlerThread(TAG);
         handlerThread.start();
         handler = new Handler(handlerThread.getLooper());
@@ -76,60 +70,88 @@ public class VideoRoomClient implements WebSocketChannelEvents {
     // AppRTCClient interface implementation.
     // Asynchronously connect to an AppRTC room URL using supplied connection
     // parameters, retrieves room parameters and connect to WebSocket server.
-    public void connectToRoom(final String roomUrl) {
+    @Override
+    public void connectToServer(JanusConnectionParameters connectionParameters) {
+        this.connectionParameters = connectionParameters;
         handler.post(new Runnable() {
             @Override
             public void run() {
-                connectToRoomInternal(roomUrl);
+                init();
             }
         });
     }
 
-    public void disconnectFromRoom() {
+    @Override
+    public void disconnectFromServer() {
         handler.post(new Runnable() {
             @Override
             public void run() {
-                disconnectFromRoomInternal();
+                disconnect();
                 handler.getLooper().quit();
             }
         });
     }
 
-    // Connects to room - function runs on a local looper thread.
-    private void connectToRoomInternal(final String roomUrl) {
-        roomState = ConnectionState.NEW;
+    private void init() {
         wsClient = new WebSocketChannelClient(handler, this);
-        final String[] subProtocols={"janus-protocol"};
-        // Connect and register WebSocket client.
-        wsClient.connect(roomUrl,subProtocols);
-        createSession();
+        wsClient.connect(connectionParameters.wsServerUrl, connectionParameters.subProtocols);
     }
 
-    // Disconnect from room and send bye messages - runs on a local looper thread.
-    private void disconnectFromRoomInternal() {
-        Log.d(TAG, "Disconnect. Room state: " + roomState);
-        if (roomState==ConnectionState.CONNECTED) {
-            Log.d(TAG, "Closing room.");
-            //sendPostMessage(MessageType.LEAVE, leaveUrl, null);
+    private void create() {
+        checkIfCalledOnValidThread();
+
+        if(state != ServerState.NEW) {
+            Log.w(TAG, "create() in a error state -- " + state);
+            return;
         }
-        roomState = ConnectionState.CLOSED;
-        //if (wsClient != null) {
-            //wsClient.disconnect(true);
-        //}
+
+        JanusTransaction janusTransaction = new JanusTransaction();
+        janusTransaction.transactionId = AppRTCUtils.randomString(12);
+        janusTransaction.success = new JanusTransaction.TransactionCallbackSuccess() {
+            @Override
+            public void success(JSONObject json) {
+                sessionId = new BigInteger(json.optJSONObject("data").optString("id"));
+                //fixme: reduce status
+                setState(ServerState.CREATED);
+                handler.post(fireKeepAlive);
+                attachPublisher();
+            }
+        };
+        janusTransaction.error = new JanusTransaction.TransactionCallbackError() {
+            @Override
+            public void error(JSONObject json) {
+                //fixme: retry
+                String code = json.optJSONObject("error").optString("code");
+                String reason = json.optJSONObject("error").optString("reason");
+                Log.e(TAG,"Transaction error: " + code + " " + reason);
+                reportError(reason);
+            }
+        };
+
+        transactionMap.put(janusTransaction.transactionId, janusTransaction);
+
+        JSONObject json = new JSONObject();
+        jsonPut(json, "janus", "create");
+        jsonPut(json, "transaction", janusTransaction.transactionId);
+
+        wsClient.send(json.toString());
     }
 
+    //每隔25秒持续发送心跳包
     private void keepAlive() {
-        String transactionID=AppRTCUtils.randomString(12);
-        JSONObject msg = new JSONObject();
-        try {
-            msg.putOpt("janus", "keepalive");
-            msg.putOpt("session_id", sessionId);
-            msg.putOpt("transaction", transactionID);
-        } catch (JSONException e) {
-            Log.e(TAG,"WebSocket message JSON parsing error: " + e.toString());
+        checkIfCalledOnValidThread();
+
+        if(state == ServerState.NEW || state == ServerState.ERROR) {
+            Log.w(TAG, "keepalive() in a error state -- " + state);
+            return;
         }
-        //Log.d(TAG, "C->WSS: " + msg.toString());
-        wsClient.send(msg.toString());
+
+        JSONObject json = new JSONObject();
+        jsonPut(json, "janus", "keepalive");
+        jsonPut(json, "session_id", sessionId);
+        jsonPut(json, "transaction", AppRTCUtils.randomString(12));
+
+        wsClient.send(json.toString());
     }
 
     private Runnable fireKeepAlive = new Runnable() {
@@ -140,119 +162,99 @@ public class VideoRoomClient implements WebSocketChannelEvents {
         }
     };
 
-    //send create message to janus
-    //{
-    //        "janus" : "create",
-    //        "transaction" : "<random alphanumeric string>"
-    //}
-    public void createSession() {
+    public void attachPublisher(){
         checkIfCalledOnValidThread();
-        if (roomState != ConnectionState.CONNECTED) {
-            Log.e(TAG,"Sending Create Janus in non connected state.");
+
+        if(state != ServerState.CREATED) {
+            Log.w(TAG, "attach() in a error state -- " + state);
             return;
         }
-        String transactionID=AppRTCUtils.randomString(12);
-        Log.d(TAG, "sending create msg to Janus " + ". transactionID: " + transactionID);
-        JanusTransaction jt = new JanusTransaction();
-        jt.tid =  transactionID;
-        jt.success = new JanusTransaction.TransactionCallbackSuccess() {
-            @Override
-            public void success(JSONObject jo) {
-                sessionId = new BigInteger(jo.optJSONObject("data").optString("id"));
-                handler.post(fireKeepAlive);
-                publisherCreateHandle();
-            }
-        };
-        jt.error = new JanusTransaction.TransactionCallbackError() {
-            @Override
-            public void error(JSONObject jo) {
-                String code = jo.optJSONObject("error").optString("code");
-                String reason = jo.optJSONObject("error").optString("reason");
-                Log.e(TAG,"Ooops: " + code + " " + reason);
-                //callbacks.error(json["error"].reason);// FIXME
-            }
-        };
-        transactions.put(transactionID, jt);
-        JSONObject msg = new JSONObject();
-        try {
-            msg.putOpt("janus", "create");
-            msg.putOpt("transaction", transactionID);
-        } catch (JSONException e) {
-            Log.e(TAG,"WebSocket message JSON parsing error: " + e.toString());
-        }
-        wsClient.send(msg.toString());
-    }
 
-    //send attach to echo test message to Janus
-    public void publisherCreateHandle() {
-        checkIfCalledOnValidThread();
-        String transactionID=AppRTCUtils.randomString(12);
-        Log.d(TAG, "publisherCreateHandle" + " transactionID: " + transactionID);
-        JanusTransaction jt = new JanusTransaction();
-        jt.tid = transactionID;
-        jt.success = new JanusTransaction.TransactionCallbackSuccess() {
+        JanusTransaction janusTransaction = new JanusTransaction();
+        janusTransaction.transactionId = AppRTCUtils.randomString(12);
+        janusTransaction.success = new JanusTransaction.TransactionCallbackSuccess() {
             @Override
-            public void success(JSONObject jo) {
+            public void success(JSONObject json) {
                 JanusHandle janusHandle = new JanusHandle();
-                janusHandle.handleId = new BigInteger(jo.optJSONObject("data").optString("id"));
+                janusHandle.handleId = new BigInteger(json.optJSONObject("data").optString("id"));
+                janusHandle.feedId = janusHandle.handleId;
                 janusHandle.onJoined = new JanusHandle.OnJoined() {
                     @Override
-                    public void onJoined(JanusHandle jh) {
-                        Log.d(TAG,"Wow,joined!handleId="+jh.handleId);
-                        rtcInterfaces.onPublisherJoined(jh.handleId);
+                    public void onJoined(JanusHandle janusHandle) {
+                        events.onPublisherJoined(janusHandle.handleId);
                     }
                 };
                 janusHandle.onRemoteJsep = new JanusHandle.OnRemoteJsep() {
                     @Override
-                    public void onRemoteJsep(JanusHandle jh,  JSONObject jsep) {
-                        rtcInterfaces.onPublisherRemoteJsep(jh.handleId, jsep);
+                    public void onRemoteJsep(JanusHandle janusHandle,  JSONObject jsep) {
+                        SessionDescription.Type type = SessionDescription.Type.fromCanonicalForm(jsep.optString("type"));
+                        SessionDescription sdp = new SessionDescription(type, jsep.optString("sdp"));
+                        events.onPublisherRemoteJsep(janusHandle.handleId, sdp);
                     }
                 };
-                handles.put(janusHandle.handleId, janusHandle);
-                publisherJoinRoom(janusHandle);
+                handleMap.put(janusHandle.handleId, janusHandle);
+                setState(ServerState.ATTACHED);
+                join();
             }
         };
-        jt.error = new JanusTransaction.TransactionCallbackError() {
+        janusTransaction.error = new JanusTransaction.TransactionCallbackError() {
             @Override
-            public void error(JSONObject jo) {
-                Log.d(TAG,"publisherCreateHandle return error:"+jo.toString());
+            public void error(JSONObject json) {
+                Log.d(TAG,"publisherCreateHandle return error:"+json.toString());
+                String code = json.optJSONObject("error").optString("code");
+                String reason = json.optJSONObject("error").optString("reason");
+                Log.e(TAG,"Transaction error: " + code + " " + reason);
+                reportError(reason);
             }
         };
-        transactions.put(transactionID, jt);
-        JSONObject msg = new JSONObject();
-        try {
-            msg.putOpt("janus", "attach");
-            msg.putOpt("plugin", "janus.plugin.videoroom");
-            msg.putOpt("transaction", transactionID);
-            msg.putOpt("session_id", sessionId);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-        Log.d(TAG, "C->WSS: " + msg.toString());
-        wsClient.send(msg.toString());
+
+        transactionMap.put(janusTransaction.transactionId, janusTransaction);
+
+        JSONObject json = new JSONObject();
+        jsonPut(json, "janus", "attach");
+        jsonPut(json, "session_id", sessionId);
+        jsonPut(json, "plugin", "janus.plugin.videoroom");
+        jsonPut(json, "transaction", janusTransaction.transactionId);
+
+        wsClient.send(json.toString());
     }
 
-    public void publisherJoinRoom(JanusHandle handle){
-        String transactionID=AppRTCUtils.randomString(12);
-        Log.d(TAG, "publisherJoinRoom" + " transactionID: " + transactionID);
-        JSONObject msg = new JSONObject();
-        JSONObject body = new JSONObject();
-        try {
-            body.putOpt("request", "join");
-            body.putOpt("room", 1234);
-            body.putOpt("ptype", "publisher");
-            body.putOpt("display", "Android webrtc");
+    private void destroy() {
+        checkIfCalledOnValidThread();
 
-            msg.putOpt("janus", "message");
-            msg.putOpt("body", body);
-            msg.putOpt("transaction", transactionID);
-            msg.putOpt("session_id", sessionId);
-            msg.putOpt("handle_id", handle.handleId);
-        } catch (JSONException e) {
-            e.printStackTrace();
+        sessionId = BigInteger.ZERO;
+
+        if(state == ServerState.NEW || state == ServerState.ERROR) {
+            Log.w(TAG, "destroy() in a error state -- " + state);
+            return;
         }
-        Log.d(TAG, "C->WSS: " + msg.toString());
-        wsClient.send(msg.toString());
+        state = ServerState.NEW;
+
+        JSONObject json = new JSONObject();
+        jsonPut(json, "janus", "destroy");
+        jsonPut(json, "session_id", sessionId);
+        jsonPut(json, "transaction", AppRTCUtils.randomString(12));
+
+        wsClient.send(json.toString());
+    }
+
+    private void disconnect() {
+        destroy();
+
+        if (wsClient != null) {
+            wsClient.disconnect(true);
+        }
+    }
+
+    private void checkIfCalledOnValidThread() {
+        if (Thread.currentThread() != handler.getLooper().getThread()) {
+            throw new IllegalStateException("WebSocket method is not called on valid thread");
+        }
+    }
+
+    private void setState(ServerState state) {
+        if(state != ServerState.ERROR)
+            this.state = state;
     }
 
     // Send local offer SDP to the other participant.
@@ -260,314 +262,148 @@ public class VideoRoomClient implements WebSocketChannelEvents {
         handler.post(new Runnable() {
             @Override
             public void run() {
-                String transactionID = AppRTCUtils.randomString(12);
-                Log.d(TAG, "publisherCreateOffer" + " transactionID: " + transactionID);
-                JSONObject publish = new JSONObject();
-                JSONObject jsep = new JSONObject();
-                JSONObject message = new JSONObject();
-                try {
-                    publish.putOpt("request", "configure");
-                    publish.putOpt("audio", true);
-                    publish.putOpt("video", true);
-
-                    jsep.putOpt("type", sdp.type);
-                    jsep.putOpt("sdp", sdp.description);
-
-                    message.putOpt("janus", "message");
-                    message.putOpt("body", publish);
-                    message.putOpt("jsep", jsep);
-                    message.putOpt("transaction", transactionID);
-                    message.putOpt("session_id", sessionId);
-                    message.putOpt("handle_id", handleId);
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-                Log.d(TAG, "C->WSS: " + message.toString());
-                wsClient.send(message.toString());
+                transClientVector.get(0).createOffer(sdp.description);
             }
         });
-
     }
 
-    public void subscriberCreateAnswer(final BigInteger handleId, final SessionDescription sdp) {
+    // fixme: Send local answer SDP to the other participant.
+    public void subscriberCreateAnswer(final BigInteger handleId, final SessionDescription sdp){
         handler.post(new Runnable() {
             @Override
             public void run() {
-                String transactionID = AppRTCUtils.randomString(12);
-                Log.d(TAG, "subscriberCreateAnswer" + " transactionID: " + transactionID);
-                JSONObject body = new JSONObject();
-                JSONObject jsep = new JSONObject();
-                JSONObject message = new JSONObject();
-
-                try {
-                    body.putOpt("request", "start");
-                    body.putOpt("room", 1234);
-
-                    jsep.putOpt("type", sdp.type);
-                    jsep.putOpt("sdp", sdp.description);
-                    message.putOpt("janus", "message");
-                    message.putOpt("body", body);
-                    message.putOpt("jsep", jsep);
-                    message.putOpt("transaction", transactionID);
-                    message.putOpt("session_id", sessionId);
-                    message.putOpt("handle_id", handleId);
-                    Log.e(TAG, "-------------" + message.toString());
-                } catch (JSONException e) {
-                    e.printStackTrace();
+                if (connectionParameters.loopback) {
+                    Log.e(TAG, "Sending answer in loopback mode.");
+                    return;
                 }
-                Log.d(TAG, "C->WSS: " + message.toString());
-                wsClient.send(message.toString());
+                JSONObject json = new JSONObject();
+                jsonPut(json, "sdp", sdp.description);
+                jsonPut(json, "type", "answer");
+                wsClient.send(json.toString());
             }
         });
     }
 
+    // Send Ice candidate to the other participant.
     public void trickleCandidate(final BigInteger handleId, final IceCandidate iceCandidate) {
         handler.post(new Runnable() {
             @Override
             public void run() {
-                String transactionID = AppRTCUtils.randomString(12);
-                Log.d(TAG, "trickleCandidate" + " transactionID: " + transactionID);
-                JSONObject candidate = new JSONObject();
-                JSONObject message = new JSONObject();
-                try {
-                    candidate.putOpt("candidate", iceCandidate.sdp);
-                    candidate.putOpt("sdpMid", iceCandidate.sdpMid);
-                    candidate.putOpt("sdpMLineIndex", iceCandidate.sdpMLineIndex);
-
-                    message.putOpt("janus", "trickle");
-                    message.putOpt("candidate", candidate);
-                    message.putOpt("transaction", transactionID);
-                    message.putOpt("session_id", sessionId);
-                    message.putOpt("handle_id", handleId);
-                } catch (JSONException e) {
-                    e.printStackTrace();
+                if (true)
+                    transClientVector.get(0).trickle(iceCandidate.sdpMLineIndex, iceCandidate.sdpMid, iceCandidate.sdp);
+                else {
+                    // Call receiver sends ice candidates to websocket server.
+                    //wsClient.send(json.toString());
                 }
-                Log.d(TAG, "C->WSS: " + message.toString());
-                wsClient.send(message.toString());
             }
         });
     }
 
-    public void trickleCandidateComplete(final BigInteger handleId) {
+    // Send removed Ice candidates to the other participant.
+    @Override
+    public void sendLocalIceCandidateRemovals(final IceCandidate[] candidates) {
         handler.post(new Runnable() {
             @Override
             public void run() {
-                String transactionID=AppRTCUtils.randomString(12);
-                Log.d(TAG, "trickleCandidateComplete" + " transactionID: " + transactionID);
-                JSONObject candidate = new JSONObject();
-                JSONObject message = new JSONObject();
-                try {
-                    candidate.putOpt("completed", true);
-
-                    message.putOpt("janus", "trickle");
-                    message.putOpt("candidate", candidate);
-                    message.putOpt("transaction", transactionID);
-                    message.putOpt("session_id", sessionId);
-                    message.putOpt("handle_id", handleId);
-                } catch (JSONException e) {
-                    e.printStackTrace();
+                /*
+                JSONObject json = new JSONObject();
+                jsonPut(json, "type", "remove-candidates");
+                JSONArray jsonArray = new JSONArray();
+                for (final IceCandidate candidate : candidates) {
+                    jsonArray.put(toJsonCandidate(candidate));
                 }
-            }
-            });
-
-    }
-
-    private void subscriberCreateHandle(final BigInteger feed, final String display) {
-        String transactionID=AppRTCUtils.randomString(12);
-        Log.d(TAG, "trickleCandidateComplete" + " transactionID: " + transactionID);
-        JanusTransaction jt = new JanusTransaction();
-        jt.tid = transactionID;
-        jt.success = new JanusTransaction.TransactionCallbackSuccess() {
-            @Override
-            public void success(JSONObject jo) {
-                JanusHandle janusHandle = new JanusHandle();
-                janusHandle.handleId = new BigInteger(jo.optJSONObject("data").optString("id"));
-                janusHandle.feedId = feed;
-                janusHandle.display = display;
-                janusHandle.onRemoteJsep = new JanusHandle.OnRemoteJsep() {
-                    @Override
-                    public void onRemoteJsep(JanusHandle jh, JSONObject jsep) {
-                        rtcInterfaces.subscriberHandleRemoteJsep(jh.handleId, jsep);
+                jsonPut(json, "candidates", jsonArray);
+                if (initiator) {
+                    // Call initiator sends ice candidates to GAE server.
+                    if (roomState != ConnectionState.CONNECTED) {
+                        reportError("Sending ICE candidate removals in non connected state.");
+                        return;
                     }
-                };
-                janusHandle.onLeaving = new JanusHandle.OnJoined() {
-                    @Override
-                    public void onJoined(JanusHandle jh) {
-                        subscriberOnLeaving(jh);
+                    sendPostMessage(MessageType.MESSAGE, messageUrl, json.toString());
+                    if (connectionParameters.loopback) {
+                        events.onRemoteIceCandidatesRemoved(candidates);
                     }
-                };
-                handles.put(janusHandle.handleId, janusHandle);
-                feeds.put(janusHandle.feedId, janusHandle);
-                subscriberJoinRoom(janusHandle);
+                } else {
+                    // Call receiver sends ice candidates to websocket server.
+                    wsClient.send(json.toString());
+                }*/
             }
-        };
-        jt.error = new JanusTransaction.TransactionCallbackError() {
-            @Override
-            public void error(JSONObject jo) {
-            }
-        };
-
-        transactions.put(transactionID, jt);
-        JSONObject msg = new JSONObject();
-        try {
-            msg.putOpt("janus", "attach");
-            msg.putOpt("plugin", "janus.plugin.videoroom");
-            msg.putOpt("transaction", transactionID);
-            msg.putOpt("session_id", sessionId);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-        Log.d(TAG, "C->WSS: " + msg.toString());
-        wsClient.send(msg.toString());
+        });
     }
-
-    private void subscriberJoinRoom(JanusHandle handle) {
-        String transactionID=AppRTCUtils.randomString(12);
-        Log.d(TAG, "subscriberJoinRoom" + " transactionID: " + transactionID);
-        JSONObject msg = new JSONObject();
-        JSONObject body = new JSONObject();
-        try {
-            body.putOpt("request", "join");
-            body.putOpt("room", 1234);
-            body.putOpt("ptype", "listener");
-            body.putOpt("feed", handle.feedId);
-
-            msg.putOpt("janus", "message");
-            msg.putOpt("body", body);
-            msg.putOpt("transaction", transactionID);
-            msg.putOpt("session_id", sessionId);
-            msg.putOpt("handle_id", handle.handleId);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-        Log.d(TAG, "C->WSS: " + msg.toString());
-        wsClient.send(msg.toString());
-    }
-
-    private void subscriberOnLeaving(final JanusHandle handle) {
-        String transactionID=AppRTCUtils.randomString(12);
-        Log.d(TAG, "subscriberJoinRoom" + " transactionID: " + transactionID);
-
-        JanusTransaction jt = new JanusTransaction();
-        jt.tid = transactionID;
-        jt.success = new JanusTransaction.TransactionCallbackSuccess() {
-            @Override
-            public void success(JSONObject jo) {
-                rtcInterfaces.onLeaving(handle.handleId);
-                handles.remove(handle.handleId);
-                feeds.remove(handle.feedId);
-            }
-        };
-        jt.error = new JanusTransaction.TransactionCallbackError() {
-            @Override
-            public void error(JSONObject jo) {
-            }
-        };
-
-        transactions.put(transactionID, jt);
-
-        JSONObject jo = new JSONObject();
-        try {
-            jo.putOpt("janus", "detach");
-            jo.putOpt("transaction", transactionID);
-            jo.putOpt("session_id", sessionId);
-            jo.putOpt("handle_id", handle.handleId);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-        Log.d(TAG, "C->WSS: " + jo.toString());
-        wsClient.send(jo.toString());
-    }
-
 
     // --------------------------------------------------------------------
     // WebSocketChannelJEvents interface implementation.
-    // All events are called by WebSocketChannelClient on a local looper thread
+    // All events are called by WebSocketChannelJClient on a local looper thread
     // (passed to WebSocket client constructor).
     @Override
     public void onWebSocketMessage(final String msg) {
-        Log.i(TAG,"Got wsmsg:"+msg);
-        if (wsClient.getState() != WebSocketConnectionState.CONNECTED) {
-            Log.e(TAG, "Got WebSocket message in non connected state.");
+        if (wsClient.getState() != WebSocketChannelClient.WebSocketConnectionState.CONNECTED) {
+            Log.e(TAG, "Got WebSocket message in error state.");
             return;
         }
-        //在此处解析msg,仿照janus.js
         try {
-            JSONObject jo = new JSONObject(msg);
-            String janus=jo.optString("janus");
-            if(janus.equals("keepalive")){
-                // Nothing happened
-                Log.i(TAG,"Got a keepalive on session " + sessionId);
+            JSONObject json = new JSONObject(msg);
+
+            String response = json.getString("janus");
+            if(response.equals("ack")) return; // fixme: handleACK(json);
+
+            if(!json.isNull("sender")) {
+                long sender = Long.parseLong(json.getString("sender"));
+                if(transIndexMap.containsKey(sender)) {
+                    String sessionId = json.getString("session_id");
+
+                    if(json.isNull("transaction")) return; // fixme: handleServiceNotify(json);
+                    else {
+                        String jsep = json.isNull("jsep") ? "" : json.getJSONObject("jsep").getString("sdp");
+                        String transaction = json.getString("transaction");
+                        if(json.isNull("plugindata")) json = json.getJSONObject("data");
+                        else json = json.getJSONObject("plugindata");
+                        transClientVector.get(transIndexMap.get(sender)).parseJson( response, transaction, json, jsep);
+                    }
+                }
+                else Log.d(TAG, "Unexpected json message: Sender is invalid -- " + sender);
                 return;
-            }else if(janus.equals("ack")) {
-                // Just an ack, we can probably ignore
-                Log.i(TAG,"Got an ack on session " + sessionId);
-            }else if(janus.equals("success")) {
-                String transaction = jo.optString("transaction");
-                JanusTransaction jt = transactions.get(transaction);
-                if (jt.success != null) {
-                    jt.success.success(jo);
-                }
-                transactions.remove(transaction);
-            }else if(janus.equals("trickle")) {
-                // We got a trickle candidate from Janus
-            }else if(janus.equals("webrtcup")) {
-                // The PeerConnection with the gateway is up! Notify this
-                Log.d(TAG,"Got a webrtcup event on session " + sessionId);
-            } else if(janus.equals("hangup")) {
-                // A plugin asked the core to hangup a PeerConnection on one of our handles
-                Log.d(TAG,"Got a hangup event on session " + sessionId);
-            } else if(janus.equals("detached")) {
-                // A plugin asked the core to detach one of our handles
-                Log.d(TAG,"Got a detached event on session " + sessionId);
-            } else if(janus.equals("media")) {
-                // Media started/stopped flowing
-                Log.d(TAG,"Got a media event on session " + sessionId);
-            } else if(janus.equals("slowlink")) {
-                Log.d(TAG,"Got a slowlink event on session " + sessionId);
-            } else if(janus.equals("error")) {
-                // Oops, something wrong happened
-                String transaction = jo.optString("transaction");
-                JanusTransaction jt = transactions.get(transaction);
-                if (jt.error != null) {
-                    jt.error.error(jo);
-                }
-                transactions.remove(transaction);
-            }  else {
-                JanusHandle handle = handles.get(new BigInteger(jo.optString("sender")));
-                if (handle == null) {
-                    Log.e(TAG, "missing handle");
-                } else if (janus.equals("event")) {
-                    JSONObject plugin = jo.optJSONObject("plugindata").optJSONObject("data");
-                    if (plugin.optString("videoroom").equals("joined")) {
-                        handle.onJoined.onJoined(handle);
-                    }
-
-                    JSONArray publishers = plugin.optJSONArray("publishers");
-                    if (publishers != null && publishers.length() > 0) {
-                        for (int i = 0, size = publishers.length(); i <= size - 1; i++) {
-                            JSONObject publisher = publishers.optJSONObject(i);
-                            BigInteger feed = new BigInteger(publisher.optString("id"));
-                            String display = publisher.optString("display");
-                            subscriberCreateHandle(feed, display);
-                        }
-                    }
-
-                    String leaving = plugin.optString("leaving");
-                    if (!TextUtils.isEmpty(leaving)) {
-                        JanusHandle jhandle = feeds.get(new BigInteger(leaving));
-                        jhandle.onLeaving.onJoined(jhandle);
-                    }
-
-                    JSONObject jsep = jo.optJSONObject("jsep");
-                    if (jsep != null) {
-                        handle.onRemoteJsep.onRemoteJsep(handle, jsep);
-                    }
-
-                } else if (janus.equals("detached")) {
-                    handle.onLeaving.onJoined(handle);
-                }
             }
+
+            if(json.isNull("transaction")) return; // fixme: handleServiceNotifyForInit(json);
+            String transaction = json.getString("transaction");
+            String res = checkTransaction(transaction);
+
+            switch (res) {
+                case "create" :
+                    if(json.getString("janus").equals("success")) {
+                        SessionID = Long.parseLong(json.getJSONObject("data").getString("id"));
+                        setState(ServerState.CREATED);
+                        handler.post(fireKeepAlive);
+                        attachPublisher();
+                    }
+                    else
+                        reportError("Unexpected json message: create() failed");
+                    break;
+                case "attachPublisher":
+                    if(json.getString("janus").equals("success")) {
+                        setState(ServerState.ATTACHED);
+                        long HandleID = Long.parseLong(json.getJSONObject("data").getString("id"));
+                        transIndexMap.put(HandleID, 0);
+                        transClientVector.get(0).init(SessionID, HandleID, connectionParameters.roomId, "test", state);
+                        transClientVector.get(0).join();
+                    }
+                    else
+                        reportError("Unexpected json message: attach() failed");
+                    break;
+                case "detach": //fixme
+                    setState(ServerState.CREATED);
+                    break;
+                case "destroy":
+                    break;
+                case "error":
+                    reportError("Unexpected json message: Not found the transaction.");
+                    break;
+                default:
+                    reportError("Unexpected json message: " + res);
+                    break;
+            }
+            removeTransaction(transaction);
         } catch (JSONException e) {
             reportError("WebSocket message JSON parsing error: " + e.toString());
         }
@@ -575,19 +411,42 @@ public class VideoRoomClient implements WebSocketChannelEvents {
 
     @Override
     public void onWebSocketOpen() {
-        Log.i(TAG,"onWebsocketOpen..");
-        roomState = ConnectionState.CONNECTED;
-        createSession();
+        create();
     }
 
     @Override
     public void onWebSocketClose() {
-        //events.onChannelClose();
+        events.onChannelClose();
     }
 
     @Override
     public void onWebSocketError(String description) {
         reportError("WebSocket error: " + description);
+    }
+
+    @Override
+    public void onSendMessage(String message){
+        wsClient.send(message);
+    }
+
+    @Override
+    public void onPrepareSDP(boolean initiator, String clientId){
+        Log.d(TAG, "onPrepareSDP");
+
+        // Fire connection and signaling parameters events.
+        events.onPublisherJoined(handleId);
+    }
+
+    @Override
+    public void onRemoteDescription(String jsep) {
+        SessionDescription sdp = new SessionDescription(
+                SessionDescription.Type.fromCanonicalForm("answer"), jsep.toString());
+        events.onRemoteDescription(sdp);
+    }
+
+    @Override
+    public void onReportTranactionError(long handleId, String msg) {
+
     }
 
     // --------------------------------------------------------------------
@@ -597,9 +456,10 @@ public class VideoRoomClient implements WebSocketChannelEvents {
         handler.post(new Runnable() {
             @Override
             public void run() {
-                if (roomState != ConnectionState.ERROR) {
-                    roomState = ConnectionState.ERROR;
-                    //events.onChannelError(errorMessage);
+                if (state != ServerState.ERROR) {
+                    destroy();
+                    state = ServerState.ERROR;
+                    events.onChannelError(errorMessage);
                 }
             }
         });
@@ -628,11 +488,4 @@ public class VideoRoomClient implements WebSocketChannelEvents {
         return new IceCandidate(
                 json.getString("id"), json.getInt("label"), json.getString("candidate"));
     }
-
-    private void checkIfCalledOnValidThread() {
-        if (Thread.currentThread() != handler.getLooper().getThread()) {
-            throw new IllegalStateException("WebSocket method is not called on valid thread");
-        }
-    }
 }
-

@@ -62,7 +62,7 @@ import org.webrtc.VideoFileRenderer;
 import org.webrtc.VideoFrame;
 import org.webrtc.VideoSink;
 
-import org.appspot.apprtc.janus.JanusRTCInterface;
+import org.appspot.apprtc.janus.JanusRTCEvents;
 
 /**
  * Activity for JanusVideoRoom setup, call waiting
@@ -70,7 +70,7 @@ import org.appspot.apprtc.janus.JanusRTCInterface;
  */
 public class VideoRoomActivity extends Activity implements PeerConnectionClient.PeerConnectionEvents,
         CallFragment.OnCallEvents,
-        JanusRTCInterface{
+        JanusRTCEvents{
     private static final String TAG = "CallRTCClient";
 
     public static final String EXTRA_ROOMID = "org.appspot.apprtc.ROOMID";
@@ -939,9 +939,7 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
             return;
         }
 
-        SessionDescription.Type type = SessionDescription.Type.fromCanonicalForm(jsep.optString("type"));
-        String sdp = jsep.optString("sdp");
-        SessionDescription sessionDescription = new SessionDescription(type, sdp);
+
         peerConnectionClient.setRemoteDescription(handleId,sessionDescription);
         logAndToast("Creating ANSWER...");
     }
