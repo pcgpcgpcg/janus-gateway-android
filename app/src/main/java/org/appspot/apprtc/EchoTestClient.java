@@ -44,7 +44,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Messages to other party (with local Ice candidates and answer SDP) can
  * be sent after WebSocket connection is established.
  */
-public class WebSocketRTCClient implements WebSocketChannelEvents {
+public class EchoTestClient implements WebSocketChannelEvents {
     private static final String TAG = "WSRTCClient";
     private static final String ROOM_JOIN = "join";
     private static final String ROOM_MESSAGE = "message";
@@ -64,7 +64,7 @@ public class WebSocketRTCClient implements WebSocketChannelEvents {
     private ConcurrentHashMap<BigInteger, JanusHandle> handles = new ConcurrentHashMap<>();
     private ConcurrentHashMap<BigInteger, JanusHandle> feeds = new ConcurrentHashMap<>();
 
-    public WebSocketRTCClient(JanusRTCInterface interfaces) {
+    public EchoTestClient(JanusRTCInterface interfaces) {
         this.rtcInterfaces=interfaces;
         roomState = ConnectionState.NEW;
         final HandlerThread handlerThread = new HandlerThread(TAG);
@@ -114,7 +114,7 @@ public class WebSocketRTCClient implements WebSocketChannelEvents {
         }
         roomState = ConnectionState.CLOSED;
         //if (wsClient != null) {
-            //wsClient.disconnect(true);
+        //wsClient.disconnect(true);
         //}
     }
 
@@ -222,7 +222,7 @@ public class WebSocketRTCClient implements WebSocketChannelEvents {
         JSONObject msg = new JSONObject();
         try {
             msg.putOpt("janus", "attach");
-            msg.putOpt("plugin", "janus.plugin.videoroom");
+            msg.putOpt("plugin", "janus.plugin.echotest");
             msg.putOpt("transaction", transactionID);
             msg.putOpt("session_id", sessionId);
         } catch (JSONException e) {
@@ -368,7 +368,7 @@ public class WebSocketRTCClient implements WebSocketChannelEvents {
                     e.printStackTrace();
                 }
             }
-            });
+        });
 
     }
 
@@ -635,4 +635,5 @@ public class WebSocketRTCClient implements WebSocketChannelEvents {
         }
     }
 }
+
 
