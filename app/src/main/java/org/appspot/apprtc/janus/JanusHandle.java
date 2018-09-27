@@ -7,11 +7,11 @@ import java.math.BigInteger;
 
 public class JanusHandle {
     public interface OnJoined{
-        void onJoined(JanusHandle jh);
+        void onJoined(JanusHandle janusHandle);
     }
 
     public interface OnRemoteJsep{
-        void onRemoteJsep(JanusHandle jh, JSONObject jsep);
+        void onRemoteJsep(JanusHandle janusHandle, JSONObject jsep);
     }
     public BigInteger handleId;
     public BigInteger feedId;
