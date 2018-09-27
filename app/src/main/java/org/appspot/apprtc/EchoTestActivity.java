@@ -43,6 +43,7 @@ import org.appspot.apprtc.AppRTCAudioManager.AudioManagerEvents;
 import org.appspot.apprtc.PeerConnectionClient.DataChannelParameters;
 import org.appspot.apprtc.PeerConnectionClient.PeerConnectionParameters;
 import org.appspot.apprtc.janus.JanusConnection;
+import org.appspot.apprtc.janus.JanusRTCEvents;
 import org.json.JSONObject;
 import org.webrtc.Camera1Enumerator;
 import org.webrtc.Camera2Enumerator;
@@ -70,7 +71,7 @@ import org.appspot.apprtc.janus.JanusRTCInterface;
  */
 public class EchoTestActivity extends Activity implements PeerConnectionClient.PeerConnectionEvents,
         CallFragment.OnCallEvents,
-        JanusRTCInterface{
+        JanusRTCEvents {
     private static final String TAG = "CallRTCClient";
 
     public static final String EXTRA_ROOMID = "org.appspot.apprtc.ROOMID";
@@ -157,7 +158,6 @@ public class EchoTestActivity extends Activity implements PeerConnectionClient.P
     }
 
     private final ProxyVideoSink remoteProxyRenderer = new ProxyVideoSink();//FIXME should be render array
-    private final ProxyVideoSink remoteProxyRenderer2=new ProxyVideoSink();
     private final ProxyVideoSink localProxyVideoSink = new ProxyVideoSink();
     @Nullable
     private PeerConnectionClient peerConnectionClient = null;
@@ -761,7 +761,8 @@ public class EchoTestActivity extends Activity implements PeerConnectionClient.P
                         echoTestClient.publisherCreateOffer(handleId, sdp);
                     }
                     else{
-                        echoTestClient.subscriberCreateAnswer(handleId,sdp);
+                        //echotest应该不可能进入到这里，所以不用处理answer的情况
+                        //echoTestClient.subscriberCreateAnswer(handleId,sdp);
                     }
 
                 }
@@ -890,7 +891,6 @@ public class EchoTestActivity extends Activity implements PeerConnectionClient.P
 //                LinearLayout.LayoutParams params  = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
 //                rootView.addView(remoteRender, params);
                 connection.videoTrack.addSink(remoteProxyRenderer);
-                connection.videoTrack.addSink(remoteProxyRenderer2);
             }
         });
     }
@@ -922,12 +922,28 @@ public class EchoTestActivity extends Activity implements PeerConnectionClient.P
             Log.e(TAG, "Received remote SDP for non-initilized peer connection.");
             return;
         }
-
         SessionDescription.Type type = SessionDescription.Type.fromCanonicalForm(jsep.optString("type"));
         String sdp = jsep.optString("sdp");
         SessionDescription sessionDescription = new SessionDescription(type, sdp);
         peerConnectionClient.setRemoteDescription(handleId,sessionDescription);
         logAndToast("Creating ANSWER...");
+    }
+
+    @Override
+    public void onChannelClose() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                logAndToast("Remote end hung up; dropping PeerConnection");
+                disconnect();
+            }
+        });
+
+    }
+
+    @Override
+    public void onChannelError(String errorMessage) {
+        reportError(errorMessage);
     }
 }
 

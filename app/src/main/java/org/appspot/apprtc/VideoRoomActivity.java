@@ -594,7 +594,7 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
         callStartedTimeMs = System.currentTimeMillis();
 
         // Start room connection.
-        videoRoomClient.connectToRoom(roomUrl);
+        //videoRoomClient.connectToRoom(roomUrl);
 
         // Create and audio manager that will take care of audio routing,
         // audio modes, audio device enumeration etc.
@@ -641,7 +641,7 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
         remoteProxyRenderer.setTarget(null);
         localProxyVideoSink.setTarget(null);
         if (videoRoomClient != null) {
-            videoRoomClient.disconnectFromRoom();
+            //videoRoomClient.disconnectFromRoom();
             videoRoomClient = null;
         }
         if (pipRenderer != null) {
@@ -774,10 +774,10 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
                 if (videoRoomClient != null) {
                     logAndToast("Sending " + sdp.type + ", delay=" + delta + "ms");
                     if(sdp.type.equals(SessionDescription.Type.OFFER)){
-                        videoRoomClient.publisherCreateOffer(handleId, sdp);
+                        //videoRoomClient.publisherCreateOffer(handleId, sdp);
                     }
                     else{
-                        videoRoomClient.subscriberCreateAnswer(handleId,sdp);
+                        //videoRoomClient.subscriberCreateAnswer(handleId,sdp);
                     }
 
                 }
@@ -796,10 +796,10 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
             @Override
             public void run() {
                 if (candidate != null) {
-                    videoRoomClient.trickleCandidate(handleId,candidate);
+                    //videoRoomClient.trickleCandidate(handleId,candidate);
                 }
                 else{
-                    videoRoomClient.trickleCandidateComplete(handleId);
+                    //videoRoomClient.trickleCandidateComplete(handleId);
                 }
             }
         });
@@ -873,11 +873,11 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
     }
 
     @Override
-    public void onPublisherRemoteJsep(final BigInteger handleId, final JSONObject jsep) {
+    public void onPublisherRemoteJsep(final BigInteger handleId, final JSONObject sdp) {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                onPublisherRemoteJsepInternal(handleId,jsep);
+                //onPublisherRemoteJsepInternal(handleId,jsep);
             }
         });
 
@@ -940,8 +940,18 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
         }
 
 
-        peerConnectionClient.setRemoteDescription(handleId,sessionDescription);
+        //peerConnectionClient.setRemoteDescription(handleId,sessionDescription);
         logAndToast("Creating ANSWER...");
+    }
+
+    @Override
+    public void onChannelClose() {
+
+    }
+
+    @Override
+    public void onChannelError(String errorMessage) {
+
     }
 }
 
