@@ -209,7 +209,7 @@ public class EchoTestClient implements WebSocketChannelEvents {
                     }
                 };
                 handles.put(janusHandle.handleId, janusHandle);
-                publisherJoinRoom(janusHandle);
+                publisherNegotiate(janusHandle);
             }
         };
         jt.error = new JanusTransaction.TransactionCallbackError() {
@@ -232,22 +232,20 @@ public class EchoTestClient implements WebSocketChannelEvents {
         wsClient.send(msg.toString());
     }
 
-    public void publisherJoinRoom(JanusHandle handle){
+    public void publisherNegotiate(JanusHandle handle){
         String transactionID=AppRTCUtils.randomString(12);
         Log.d(TAG, "publisherJoinRoom" + " transactionID: " + transactionID);
         JSONObject msg = new JSONObject();
         JSONObject body = new JSONObject();
         try {
-            body.putOpt("request", "join");
-            body.putOpt("room", 1234);
-            body.putOpt("ptype", "publisher");
-            body.putOpt("display", "Android webrtc");
-
             msg.putOpt("janus", "message");
-            msg.putOpt("body", body);
-            msg.putOpt("transaction", transactionID);
             msg.putOpt("session_id", sessionId);
-            msg.putOpt("handle_id", handle.handleId);
+            msg.putOpt("handle_id",handle.handleId);
+            msg.putOpt("transaction",transactionID);
+            body.putOpt("audio",true);
+            body.putOpt("video",true);
+            msg.putOpt("body",body);
+            Log.d(TAG, "C->WSS: " + msg.toString());
         } catch (JSONException e) {
             e.printStackTrace();
         }
