@@ -95,7 +95,8 @@ public class CallFragment extends Fragment {
       @Override
       public void onClick(View view) {
         boolean enabled = callEvents.onToggleMic();
-        toggleMuteButton.setAlpha(enabled ? 1.0f : 0.3f);
+        //toggleMuteButton.setAlpha(enabled ? 1.0f : 0.3f);
+        toggleMuteButton.setBackgroundResource(enabled? R.drawable.mic_unmute:R.drawable.mic_mute);
       }
     });
 
