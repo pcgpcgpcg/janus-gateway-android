@@ -49,6 +49,7 @@ public class ConnectActivity extends Activity {
   private ImageButton addFavoriteButton;
   private EditText roomEditText;
   private CardView mCardViewLoopBack;
+  private CardView mCardViewAudioBridge;
   private SharedPreferences sharedPref;
   private String keyprefResolution;
   private String keyprefFps;
@@ -58,6 +59,12 @@ public class ConnectActivity extends Activity {
   private String keyprefAudioBitrateValue;
   private String keyprefRoomServerUrl;
   private String keyprefRoom;
+
+  public enum TopRTCDemoEnum{
+    LOOPBACK,
+    AUDIOBRIDGE,
+    VIDEOMEETING
+  }
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
@@ -100,7 +107,18 @@ public class ConnectActivity extends Activity {
       @Override
       public void onClick(View v) {
         Toast.makeText(ConnectActivity.this, "go to loopback test!", Toast.LENGTH_LONG).show();
-        connectToRoom(null, false, true, false, 0);
+        TopRTCDemoEnum type=TopRTCDemoEnum.LOOPBACK;
+        connectToRoom(type, roomEditText.getText().toString(),false, true, false, 0);
+      }
+    });
+
+    mCardViewAudioBridge=(CardView)findViewById(R.id.card_view_voice_ptt);
+    mCardViewAudioBridge.setOnClickListener(new View.OnClickListener() {
+      @Override
+      public void onClick(View v) {
+        Toast.makeText(ConnectActivity.this, "go to audio bridge test!", Toast.LENGTH_SHORT).show();
+        TopRTCDemoEnum type=TopRTCDemoEnum.AUDIOBRIDGE;
+        connectToRoom(type,roomEditText.getText().toString(), false, true, false, 0);
       }
     });
 
@@ -112,7 +130,8 @@ public class ConnectActivity extends Activity {
       boolean useValuesFromIntent =
           intent.getBooleanExtra(VideoRoomActivity.EXTRA_USE_VALUES_FROM_INTENT, false);
       String room = sharedPref.getString(keyprefRoom, "");
-      connectToRoom(room, true, loopback, useValuesFromIntent, runTimeMs);
+      //FIXME
+      //connectToRoom(room, true, loopback, useValuesFromIntent, runTimeMs);
     }
   }
 
@@ -131,7 +150,7 @@ public class ConnectActivity extends Activity {
       startActivity(intent);
       return true;
     } else if (item.getItemId() == R.id.action_loopback) {
-      connectToRoom(null, false, true, false, 0);
+      //connectToRoom(null, false, true, false, 0);
       return true;
     } else {
       return super.onOptionsItemSelected(item);
@@ -222,7 +241,7 @@ public class ConnectActivity extends Activity {
   }
 
   @SuppressWarnings("StringSplitter")
-  private void connectToRoom(String roomId, boolean commandLineRun, boolean loopback,
+  private void connectToRoom(TopRTCDemoEnum type,String roomId, boolean commandLineRun, boolean loopback,
       boolean useValuesFromIntent, int runTimeMs) {
     ConnectActivity.commandLineRun = commandLineRun;
 
@@ -416,7 +435,22 @@ public class ConnectActivity extends Activity {
     Log.d(TAG, "Connecting to room " + roomId + " at URL " + roomUrl);
     if (validateUrl(roomUrl)) {
       Uri uri = Uri.parse(roomUrl);
-      Intent intent = new Intent(this, EchoTestActivity.class);
+      Intent intent;
+      switch (type){
+        case LOOPBACK:
+          intent= new Intent(this, EchoTestActivity.class);
+          break;
+        case AUDIOBRIDGE:
+          intent= new Intent(this, AudioBridgeActivity.class);
+          break;
+        case VIDEOMEETING:
+          intent= new Intent(this, VideoRoomActivity.class);
+          break;
+        default:
+          intent= new Intent(this, VideoRoomActivity.class);
+          break;
+      }
+
       intent.setData(uri);
       intent.putExtra(VideoRoomActivity.EXTRA_ROOMID, roomId);
       intent.putExtra(VideoRoomActivity.EXTRA_LOOPBACK, loopback);
@@ -513,7 +547,7 @@ public class ConnectActivity extends Activity {
   private final OnClickListener connectListener = new OnClickListener() {
     @Override
     public void onClick(View view) {
-      connectToRoom(roomEditText.getText().toString(), false, false, false, 0);
+      //connectToRoom(roomEditText.getText().toString(), false, false, false, 0);
     }
   };
 }

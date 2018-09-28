@@ -818,7 +818,7 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
     }
 
     @Override
-    public void onIceConnected() {
+    public void onIceConnected(BigInteger handleId) {
         final long delta = System.currentTimeMillis() - callStartedTimeMs;
         runOnUiThread(new Runnable() {
             @Override
@@ -831,7 +831,7 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient.
     }
 
     @Override
-    public void onIceDisconnected() {
+    public void onIceDisconnected(BigInteger handleId) {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {

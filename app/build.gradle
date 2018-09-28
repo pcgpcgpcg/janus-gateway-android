@@ -33,7 +33,8 @@ android {
 dependencies {
     implementation "com.android.support:appcompat-v7:${rootProject.ext.androidSupportSdkVersion}"
     implementation 'com.android.support:cardview-v7:28.0.0'
-    implementation (name:'autobanh', ext:'jar')
+    implementation(name: 'autobanh', ext: 'jar')
     implementation project(':libjingle_peerconnection')
     //implementation 'org.webrtc:google-webrtc:1.0.23995'
+    implementation files('libs/BaiduLBS_Android.jar')
 }

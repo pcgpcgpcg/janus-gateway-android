@@ -603,7 +603,7 @@ public class EchoTestActivity extends Activity implements PeerConnectionClient.P
     }
 
     // Should be called from UI thread
-    private void callConnected() {
+    private void callConnected(BigInteger handleId) {
         final long delta = System.currentTimeMillis() - callStartedTimeMs;
         Log.i(TAG, "Call connected: delay=" + delta + "ms");
         if (peerConnectionClient == null || isError) {
@@ -611,7 +611,7 @@ public class EchoTestActivity extends Activity implements PeerConnectionClient.P
             return;
         }
         // Enable statistics callback.
-        //peerConnectionClient.enableStatsEvents(true, STAT_CALLBACK_PERIOD);
+        peerConnectionClient.enableStatsEvents(true, STAT_CALLBACK_PERIOD,handleId);
         //setSwappedFeeds(false /* isSwappedFeeds */);
     }
 
@@ -803,20 +803,20 @@ public class EchoTestActivity extends Activity implements PeerConnectionClient.P
     }
 
     @Override
-    public void onIceConnected() {
+    public void onIceConnected(BigInteger handleId) {
         final long delta = System.currentTimeMillis() - callStartedTimeMs;
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 logAndToast("ICE connected, delay=" + delta + "ms");
                 iceConnected = true;
-                //callConnected();
+                callConnected(handleId);
             }
         });
     }
 
     @Override
-    public void onIceDisconnected() {
+    public void onIceDisconnected(BigInteger handleId) {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {

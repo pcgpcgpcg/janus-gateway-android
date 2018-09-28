@@ -291,13 +291,13 @@ public class PeerConnectionClient {
      * Callback fired once connection is established (IceConnectionState is
      * CONNECTED).
      */
-    void onIceConnected();
+    void onIceConnected(final BigInteger handleId);
 
     /**
      * Callback fired once connection is closed (IceConnectionState is
      * DISCONNECTED).
      */
-    void onIceDisconnected();
+    void onIceDisconnected(final BigInteger handleId);
 
     /**
      * Callback fired once peer connection is closed.
@@ -1261,9 +1261,9 @@ public class PeerConnectionClient {
       executor.execute(() -> {
         Log.d(TAG, "IceConnectionState: " + newState);
         if (newState == IceConnectionState.CONNECTED) {
-          events.onIceConnected();
+          events.onIceConnected(connection.handleId);
         } else if (newState == IceConnectionState.DISCONNECTED) {
-          events.onIceDisconnected();
+          events.onIceDisconnected(connection.handleId);
         } else if (newState == IceConnectionState.FAILED) {
           reportError("ICE connection failed.");
         }
