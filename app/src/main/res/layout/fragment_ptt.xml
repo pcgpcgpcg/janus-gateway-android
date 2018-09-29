@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <TextView
+        android:id="@+id/status_text_ptt"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:layout_above="@id/button_ptt"
+        android:textColor="#ffffff"
+        android:textSize="16sp"
+        android:text="testaudiobridge"
+        android:layout_margin="8dp"/>
+
+    <ImageButton
+        android:id="@+id/button_ptt"
+        android:background="@drawable/ptt_red"
+        android:contentDescription="@string/disconnect_call"
+        android:layout_centerHorizontal="true"
+        android:layout_alignParentBottom="true"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="32dp"
+        android:layout_width="64dp"
+        android:layout_height="64dp"/>
+
+</RelativeLayout>

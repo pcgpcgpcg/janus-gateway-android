@@ -18,6 +18,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.SoundPool;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
@@ -73,6 +74,7 @@ import org.appspot.apprtc.janus.JanusRTCEvents;
  * and call view.
  */
 public class AudioBridgeActivity extends Activity implements PeerConnectionClient.PeerConnectionEvents,
+        PTTFragment.OnPTTEvents,
         JanusRTCEvents {
     private static final String TAG = "CallRTCClient";
 
@@ -179,6 +181,11 @@ public class AudioBridgeActivity extends Activity implements PeerConnectionClien
     private static Intent mediaProjectionPermissionResultData;
     private static int mediaProjectionPermissionResultCode;
 
+    //FIXME should selfhost
+    private PTTFragment pttFragment;
+    private SoundPool soundPool;//声明一个SoundPool
+    private int soundID;
+
     @Override
     // TODO(bugs.webrtc.org/8580): LayoutParams.FLAG_TURN_SCREEN_ON and
     // LayoutParams.FLAG_SHOW_WHEN_LOCKED are deprecated.
@@ -188,6 +195,9 @@ public class AudioBridgeActivity extends Activity implements PeerConnectionClien
         Thread.setDefaultUncaughtExceptionHandler(new UnhandledExceptionHandler(this));
         //Baidu Map init 在使用SDK各组件之前初始化context信息，传入ApplicationContext
         SDKInitializer.initialize(getApplicationContext());
+        //按钮声音
+        soundPool=new SoundPool.Builder().build();
+        soundID = soundPool.load(this, R.raw.bell1, 1);
 
         // Set window styles for fullscreen-window size. Needs to be done before
         // adding content.
@@ -200,6 +210,8 @@ public class AudioBridgeActivity extends Activity implements PeerConnectionClien
 
         //FIXME in videoroom we have many iceConnection
         iceConnected = false;
+
+        pttFragment = new PTTFragment();
 
         final Intent intent = getIntent();
         final EglBase eglBase = EglBase.create();
@@ -280,7 +292,10 @@ public class AudioBridgeActivity extends Activity implements PeerConnectionClien
         String roomIdStr="1234";
 
         //roomConnectionParameters = new RoomConnectionParameters(roomUriStr, roomIdStr, loopback, urlParameters);
-
+        pttFragment.setArguments(intent.getExtras());
+        FragmentTransaction ft = getFragmentManager().beginTransaction();
+        ft.add(R.id.audio_bridge_fragment_container, pttFragment);
+        ft.commit();
         // Create peer connection client.
         peerConnectionClient = new PeerConnectionClient(
                 getApplicationContext(), eglBase, peerConnectionParameters, AudioBridgeActivity.this);
@@ -670,6 +685,35 @@ public class AudioBridgeActivity extends Activity implements PeerConnectionClien
     public void onChannelError(String errorMessage) {
         reportError(errorMessage);
     }
+
+    @Override
+    public void onPTTPushed() {
+        playSound();
+    }
+
+    @Override
+    public void onPTTRelease() {
+
+    }
+
+    private void initSound() {
+
+    }
+
+    private void playSound() {
+        if(soundPool==null){
+            return;
+        }
+        soundPool.play(soundID,
+                0.9f,   //左耳道音量【0~1】
+                0.9f,   //右耳道音量【0~1】
+                0,     //播放优先级【0表示最低优先级】
+                0,     //循环模式【0表示循环一次，-1表示一直循环，其他表示数字+1表示当前数字对应的循环次数】
+                1     //播放速度【1是正常，范围从0~2】
+        );
+    }
+
+
 }
 
 
