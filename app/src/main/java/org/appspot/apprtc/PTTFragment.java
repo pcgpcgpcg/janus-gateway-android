@@ -14,6 +14,7 @@ import android.app.Activity;
 import android.app.Fragment;
 import android.os.Bundle;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
@@ -48,6 +49,24 @@ public class PTTFragment extends Fragment {
         // Create UI controls.
         statusView = controlView.findViewById(R.id.status_text_ptt);
         ImageButton PTTButton = controlView.findViewById(R.id.button_ptt);
+
+        PTTButton.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_UP://松开事件发生后执行代码的区域
+                        pttEvents.onPTTRelease();
+                        break;
+                    case MotionEvent.ACTION_DOWN://按住事件发生后执行代码的区域
+                        pttEvents.onPTTPushed();
+                        break;
+                    default:
+                        break;
+                }
+                return true;
+            }
+        });
+
 
         // Add buttons click events.
         PTTButton.setOnClickListener(new View.OnClickListener() {

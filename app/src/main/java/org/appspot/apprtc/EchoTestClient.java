@@ -323,19 +323,6 @@ public class EchoTestClient implements WebSocketChannelEvents {
                     message.putOpt("transaction", transactionID);
                     message.putOpt("session_id", sessionId);
                     message.putOpt("handle_id", handleId);
-
-                    message.put("janus", "message");
-                    message.put("session_id", sessionId);
-                    message.put("handle_id", handleId);
-                    message.put("transaction", transactionID);
-                    //sub_json.put("request", "configure");
-                    publish.put("audio", true);
-                    publish.put("video", true);
-                    message.put("body", publish);
-
-                    jsep.put("type",sdp.type);
-                    jsep.put("sdp",sdp.description);
-                    message.put("jsep",jsep);
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }

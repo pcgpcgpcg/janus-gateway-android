@@ -59,6 +59,7 @@ public class AudioBridgeClient implements WebSocketChannelEvents {
     private ConnectionState roomState;
 
     private BigInteger sessionId;
+    private BigInteger mHandleId;
 
     //采用线程安全的hashmap
     private ConcurrentHashMap<String, JanusTransaction> transactions = new ConcurrentHashMap<>();
@@ -217,10 +218,11 @@ public class AudioBridgeClient implements WebSocketChannelEvents {
             public void success(JSONObject jo) {
                 JanusHandle janusHandle = new JanusHandle();
                 janusHandle.handleId = new BigInteger(jo.optJSONObject("data").optString("id"));
+                mHandleId=janusHandle.handleId;
                 janusHandle.onJoined = new JanusHandle.OnJoined() {
                     @Override
                     public void onJoined(JanusHandle jh) {
-
+                        rtcEvents.onPublisherJoined(jh.handleId);
                     }
                 };
                 janusHandle.onRemoteJsep = new JanusHandle.OnRemoteJsep() {
@@ -230,7 +232,7 @@ public class AudioBridgeClient implements WebSocketChannelEvents {
                     }
                 };
                 handles.put(janusHandle.handleId, janusHandle);
-                publisherNegotiate(janusHandle);
+                publisherJoinRoom(janusHandle);
             }
         };
         jt.error = new JanusTransaction.TransactionCallbackError() {
@@ -243,7 +245,7 @@ public class AudioBridgeClient implements WebSocketChannelEvents {
         JSONObject msg = new JSONObject();
         try {
             msg.putOpt("janus", "attach");
-            msg.putOpt("plugin", "janus.plugin.echotest");
+            msg.putOpt("plugin", "janus.plugin.audiobridge");
             msg.putOpt("transaction", transactionID);
             msg.putOpt("session_id", sessionId);
         } catch (JSONException e) {
@@ -253,38 +255,67 @@ public class AudioBridgeClient implements WebSocketChannelEvents {
         wsClient.send(msg.toString());
     }
 
-    public void publisherNegotiate(JanusHandle handle){
-        rtcEvents.onPublisherJoined(handle.handleId);
+    public void publisherJoinRoom(JanusHandle handle){
         String transactionID=AppRTCUtils.randomString(12);
         Log.d(TAG, "publisherJoinRoom" + " transactionID: " + transactionID);
-        JanusTransaction jt = new JanusTransaction();
-        jt.transactionId =  transactionID;
-        jt.event = new JanusTransaction.TransactionCallbackEvent(){
-            @Override
-            public void event(JSONObject jo) {
-                JSONObject jsep = jo.optJSONObject("jsep");
-                if (jsep != null) {
-                    rtcEvents.onPublisherRemoteJsep(handle.handleId,jsep);
-                }
-            }
-        };
-        transactions.put(transactionID, jt);
         JSONObject msg = new JSONObject();
         JSONObject body = new JSONObject();
         try {
+            body.putOpt("request", "join");
+            body.putOpt("room", 1234);
+            body.putOpt("display", "Android webrtc");
+
             msg.putOpt("janus", "message");
+            msg.putOpt("body", body);
+            msg.putOpt("transaction", transactionID);
             msg.putOpt("session_id", sessionId);
-            msg.putOpt("handle_id",handle.handleId);
-            msg.putOpt("transaction",transactionID);
-            body.putOpt("audio",true);
-            body.putOpt("video",true);
-            msg.putOpt("body",body);
-            Log.d(TAG, "C->WSS: " + msg.toString());
+            msg.putOpt("handle_id", handle.handleId);
         } catch (JSONException e) {
             e.printStackTrace();
         }
         Log.d(TAG, "C->WSS: " + msg.toString());
         wsClient.send(msg.toString());
+    }
+
+    public void publisherDisableAudio(boolean bDisable){
+        handler.post(new Runnable() {
+                         @Override
+                         public void run() {
+                             String transactionID=AppRTCUtils.randomString(12);
+                             Log.d(TAG, "publisherJoinRoom" + " transactionID: " + transactionID);
+                             /*JanusTransaction jt = new JanusTransaction();
+                             jt.transactionId =  transactionID;
+                             jt.event = new JanusTransaction.TransactionCallbackEvent(){
+                                 @Override
+                                 public void event(JSONObject jo) {
+                                     String result=jo.optJSONObject("data").optString("result");
+                                     if(result.equals("ok")){
+                                         //set audio enable/disable ok
+                                     }else{
+                                         //set audio enable/disable failed
+                                     }
+                                 }
+                             };
+                             transactions.put(transactionID, jt);*/
+                             JSONObject msg = new JSONObject();
+                             JSONObject body = new JSONObject();
+                             try {
+                                 msg.putOpt("janus", "message");
+                                 msg.putOpt("session_id", sessionId);
+                                 msg.putOpt("handle_id",mHandleId);
+                                 msg.putOpt("transaction",transactionID);
+                                 body.putOpt("request","configure");
+                                 body.putOpt("muted",bDisable);
+                                 msg.putOpt("body",body);
+                                 Log.d(TAG, "C->WSS: " + msg.toString());
+                             } catch (JSONException e) {
+                                 e.printStackTrace();
+                             }
+                             Log.d(TAG, "C->WSS: " + msg.toString());
+                             wsClient.send(msg.toString());
+                         }
+                     });
+
     }
 
     // Send local offer SDP to the other participant.
@@ -299,10 +330,10 @@ public class AudioBridgeClient implements WebSocketChannelEvents {
                 jt.event = new JanusTransaction.TransactionCallbackEvent(){
                     @Override
                     public void event(JSONObject jo) {
-                        JSONObject jsep = jo.optJSONObject("jsep");
+                        /*JSONObject jsep = jo.optJSONObject("jsep");
                         if (jsep != null) {
                             rtcEvents.onPublisherRemoteJsep(handleId,jsep);
-                        }
+                        }*/
                     }
                 };
                 transactions.put(transactionID, jt);
@@ -311,8 +342,7 @@ public class AudioBridgeClient implements WebSocketChannelEvents {
                 JSONObject message = new JSONObject();
                 try {
                     publish.putOpt("request", "configure");
-                    publish.putOpt("audio", true);
-                    publish.putOpt("video", true);
+                    publish.putOpt("muted", true);
 
                     jsep.putOpt("type", sdp.type);
                     jsep.putOpt("sdp", sdp.description);
@@ -323,19 +353,6 @@ public class AudioBridgeClient implements WebSocketChannelEvents {
                     message.putOpt("transaction", transactionID);
                     message.putOpt("session_id", sessionId);
                     message.putOpt("handle_id", handleId);
-
-                    message.put("janus", "message");
-                    message.put("session_id", sessionId);
-                    message.put("handle_id", handleId);
-                    message.put("transaction", transactionID);
-                    //sub_json.put("request", "configure");
-                    publish.put("audio", true);
-                    publish.put("video", true);
-                    message.put("body", publish);
-
-                    jsep.put("type",sdp.type);
-                    jsep.put("sdp",sdp.description);
-                    message.put("jsep",jsep);
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
@@ -451,24 +468,54 @@ public class AudioBridgeClient implements WebSocketChannelEvents {
                     jt.error.error(jo);
                 }
                 transactions.remove(transaction);
-            } else{
+            }  else {
                 JanusHandle handle = handles.get(new BigInteger(jo.optString("sender")));
                 if (handle == null) {
                     Log.e(TAG, "missing handle");
                 } else if (janus.equals("event")) {
-                    Log.d(TAG,"Got a plugin event on session " + sessionId);
-
+                    //FIXME should precess corespond transcation event
                     String transaction=jo.optString("transaction");
-                    if(transaction==null||transaction.isEmpty()){
-                        return;
-                    }
-                    JanusTransaction jt = transactions.get(transaction);
-                    if(jt!=null){
-                        if (jt.event != null) {
-                            jt.event.event(jo);
+                    if(transaction!=null&&!transaction.isEmpty()){
+                        JanusTransaction jt = transactions.get(transaction);
+                        if(jt!=null){
+                            if (jt.event != null) {
+                                jt.event.event(jo);
+                            }
+                            transactions.remove(transaction);
                         }
+                        JSONObject plugin = jo.optJSONObject("plugindata").optJSONObject("data");
+                        if (plugin.optString("audiobridge").equals("joined")) {
+                            handle.onJoined.onJoined(handle);
+                        }
+                        JSONArray publishers = plugin.optJSONArray("publishers");
+                        if (publishers != null && publishers.length() > 0) {
+                            for (int i = 0, size = publishers.length(); i <= size - 1; i++) {
+                                JSONObject publisher = publishers.optJSONObject(i);
+                                BigInteger feed = new BigInteger(publisher.optString("id"));
+                                String display = publisher.optString("display");
+                                //此处可以显示当前语音组里有哪几个人
+                            }
+                        }
+
+                        String leaving = plugin.optString("leaving");
+                        if (!TextUtils.isEmpty(leaving)) {
+                            JanusHandle jhandle = feeds.get(new BigInteger(leaving));
+                            jhandle.onLeaving.onJoined(jhandle);
+                        }
+
+                        JSONObject jsep = jo.optJSONObject("jsep");
+                        if (jsep != null) {
+                            handle.onRemoteJsep.onRemoteJsep(handle, jsep);
+                        }
+
+                    }else{
+                        //处理别的客户join和leave事件 FIXME
                     }
+                } else if (janus.equals("detached")) {
+                    handle.onLeaving.onJoined(handle);
                 }
+
+
             }
         } catch (JSONException e) {
             reportError("WebSocket message JSON parsing error: " + e.toString());

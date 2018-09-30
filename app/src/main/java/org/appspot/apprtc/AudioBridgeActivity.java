@@ -18,6 +18,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.AudioManager;
 import android.media.SoundPool;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
@@ -195,9 +196,6 @@ public class AudioBridgeActivity extends Activity implements PeerConnectionClien
         Thread.setDefaultUncaughtExceptionHandler(new UnhandledExceptionHandler(this));
         //Baidu Map init 在使用SDK各组件之前初始化context信息，传入ApplicationContext
         SDKInitializer.initialize(getApplicationContext());
-        //按钮声音
-        soundPool=new SoundPool.Builder().build();
-        soundID = soundPool.load(this, R.raw.bell1, 1);
 
         // Set window styles for fullscreen-window size. Needs to be done before
         // adding content.
@@ -688,31 +686,42 @@ public class AudioBridgeActivity extends Activity implements PeerConnectionClien
 
     @Override
     public void onPTTPushed() {
+        Log.d(TAG,"playing sound");
         playSound();
+        audioBridgeClient.publisherDisableAudio(false);
     }
 
     @Override
     public void onPTTRelease() {
-
+        Log.d(TAG,"stopping sound");
+        stopSound();
+        audioBridgeClient.publisherDisableAudio(true);
     }
 
     private void initSound() {
 
     }
 
+
     private void playSound() {
+        soundPool = new SoundPool(1, AudioManager.STREAM_SYSTEM, 0);
+        soundID=soundPool.load(this, R.raw.bell1, 1);
+        soundPool.setOnLoadCompleteListener(new SoundPool.OnLoadCompleteListener() {
+            @Override
+            public void onLoadComplete(SoundPool soundPool, int sampleId, int status) {
+                soundID=soundPool.play(sampleId, 1, 1, 1, 0, 1);
+                Log.d(TAG,"playing... the soundID:"+soundID);
+            }
+        });
+    }
+
+    private void stopSound() {
         if(soundPool==null){
             return;
         }
-        soundPool.play(soundID,
-                0.9f,   //左耳道音量【0~1】
-                0.9f,   //右耳道音量【0~1】
-                0,     //播放优先级【0表示最低优先级】
-                0,     //循环模式【0表示循环一次，-1表示一直循环，其他表示数字+1表示当前数字对应的循环次数】
-                1     //播放速度【1是正常，范围从0~2】
-        );
+        Log.d(TAG,"stopping... the soundID:"+soundID);
+        soundPool.stop(soundID);
     }
-
 
 }
 
