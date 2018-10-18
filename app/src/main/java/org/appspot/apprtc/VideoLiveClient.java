@@ -4,27 +4,28 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
 
-import org.webrtc.IceCandidate;
-import org.webrtc.SessionDescription;
+import org.appspot.apprtc.WebSocketChannelClient.WebSocketChannelEvents;
 import org.appspot.apprtc.janus.JanusCommon;
 import org.appspot.apprtc.janus.JanusCommon.JanusConnectionParameters;
 import org.appspot.apprtc.janus.JanusCommon.JanusServerState;
+import org.appspot.apprtc.janus.JanusHandle;
 import org.appspot.apprtc.janus.JanusRTCEvents2;
 import org.appspot.apprtc.janus.JanusTransaction2;
-import org.appspot.apprtc.janus.JanusHandle;
-import static org.appspot.apprtc.janus.JanusUtils.randomString;
-import static org.appspot.apprtc.janus.JanusUtils.jsonPut;
-import static org.appspot.apprtc.janus.JanusUtils.convertSdpToJson;
-import static org.appspot.apprtc.janus.JanusUtils.convertJsonToCandidate;
-import org.appspot.apprtc.WebSocketChannelClient.WebSocketChannelEvents;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.webrtc.IceCandidate;
+import org.webrtc.SessionDescription;
+
 import java.math.BigInteger;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class VideoRoomClient implements WebSocketChannelEvents {
+import static org.appspot.apprtc.janus.JanusUtils.convertJsonToCandidate;
+import static org.appspot.apprtc.janus.JanusUtils.convertSdpToJson;
+import static org.appspot.apprtc.janus.JanusUtils.jsonPut;
+import static org.appspot.apprtc.janus.JanusUtils.randomString;
+
+public class VideoLiveClient implements WebSocketChannelEvents {
 
     private static final String TAG = "VideoRoomClient";
 
@@ -39,7 +40,7 @@ public class VideoRoomClient implements WebSocketChannelEvents {
     private ConcurrentHashMap<BigInteger, BigInteger> feedMap = new ConcurrentHashMap<>();
     private BigInteger sessionId, privateId;
 
-    public VideoRoomClient(JanusRTCEvents2 events) {
+    public VideoLiveClient(JanusRTCEvents2 events) {
         this.events = events;
         this.sessionId = BigInteger.ZERO;
         this.privateId = BigInteger.ZERO;
@@ -528,7 +529,7 @@ public class VideoRoomClient implements WebSocketChannelEvents {
                             JSONObject publisher = publishers.optJSONObject(i);
                             BigInteger feedId = new BigInteger(publisher.optString("id"));
                             String display = publisher.optString("display");
-                            attach(feedId, display);
+                            //attach(feedId, display);
                         }
                     }
 

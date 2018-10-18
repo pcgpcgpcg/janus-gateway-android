@@ -46,10 +46,10 @@ public class ConnectActivity extends Activity {
   private static final int REMOVE_FAVORITE_INDEX = 0;
   private static boolean commandLineRun = false;
 
-  private ImageButton addFavoriteButton;
-  private EditText roomEditText;
   private CardView mCardViewLoopBack;
   private CardView mCardViewAudioBridge;
+  private CardView mCardViewVideoLive;
+  private CardView mCardViewVideoRoom;
   private SharedPreferences sharedPref;
   private String keyprefResolution;
   private String keyprefFps;
@@ -63,6 +63,7 @@ public class ConnectActivity extends Activity {
   public enum TopRTCDemoEnum{
     LOOPBACK,
     AUDIOBRIDGE,
+    VIDEOLIVE,
     VIDEOMEETING
   }
 
@@ -84,31 +85,13 @@ public class ConnectActivity extends Activity {
 
     setContentView(R.layout.activity_connect);
 
-    roomEditText = findViewById(R.id.room_edittext);
-    roomEditText.setOnEditorActionListener(new TextView.OnEditorActionListener() {
-      @Override
-      public boolean onEditorAction(TextView textView, int i, KeyEvent keyEvent) {
-        if (i == EditorInfo.IME_ACTION_DONE) {
-          addFavoriteButton.performClick();
-          return true;
-        }
-        return false;
-      }
-    });
-    roomEditText.requestFocus();
-
-    ImageButton connectButton = findViewById(R.id.connect_button);
-    connectButton.setOnClickListener(connectListener);
-    addFavoriteButton = findViewById(R.id.add_favorite_button);
-    addFavoriteButton.setOnClickListener(addFavoriteListener);
-
     mCardViewLoopBack=(CardView)findViewById(R.id.card_view_loopback);
     mCardViewLoopBack.setOnClickListener(new View.OnClickListener() {
       @Override
       public void onClick(View v) {
-        Toast.makeText(ConnectActivity.this, "go to loopback test!", Toast.LENGTH_LONG).show();
+        //Toast.makeText(ConnectActivity.this, "go to loopback!", Toast.LENGTH_LONG).show();
         TopRTCDemoEnum type=TopRTCDemoEnum.LOOPBACK;
-        connectToRoom(type, roomEditText.getText().toString(),false, true, false, 0);
+        connectToRoom(type, "1234",false, true, false, 0);
       }
     });
 
@@ -116,9 +99,29 @@ public class ConnectActivity extends Activity {
     mCardViewAudioBridge.setOnClickListener(new View.OnClickListener() {
       @Override
       public void onClick(View v) {
-        Toast.makeText(ConnectActivity.this, "go to audio bridge test!", Toast.LENGTH_SHORT).show();
+        //Toast.makeText(ConnectActivity.this, "go to audiobridge!", Toast.LENGTH_SHORT).show();
         TopRTCDemoEnum type=TopRTCDemoEnum.AUDIOBRIDGE;
-        connectToRoom(type,roomEditText.getText().toString(), false, true, false, 0);
+        connectToRoom(type,"1234", false, true, false, 0);
+      }
+    });
+
+    mCardViewVideoLive=(CardView)findViewById(R.id.card_view_live_streaming);
+    mCardViewVideoLive.setOnClickListener(new View.OnClickListener() {
+      @Override
+      public void onClick(View v) {
+        //Toast.makeText(ConnectActivity.this, "go to audio bridge test!", Toast.LENGTH_SHORT).show();
+        TopRTCDemoEnum type=TopRTCDemoEnum.VIDEOLIVE;
+        connectToRoom(type,"1234", false, false, false, 0);
+      }
+    });
+
+    mCardViewVideoRoom=(CardView)findViewById(R.id.card_view_video_meet);
+    mCardViewVideoRoom.setOnClickListener(new View.OnClickListener() {
+      @Override
+      public void onClick(View v) {
+        //Toast.makeText(ConnectActivity.this, "go to audio bridge test!", Toast.LENGTH_SHORT).show();
+        TopRTCDemoEnum type=TopRTCDemoEnum.VIDEOMEETING;
+        connectToRoom(type,"1234", false, false, false, 0);
       }
     });
 
@@ -149,10 +152,7 @@ public class ConnectActivity extends Activity {
       Intent intent = new Intent(this, SettingsActivity.class);
       startActivity(intent);
       return true;
-    } else if (item.getItemId() == R.id.action_loopback) {
-      //connectToRoom(null, false, true, false, 0);
-      return true;
-    } else {
+    }  else {
       return super.onOptionsItemSelected(item);
     }
   }
@@ -442,6 +442,9 @@ public class ConnectActivity extends Activity {
           break;
         case AUDIOBRIDGE:
           intent= new Intent(this, AudioBridgeActivity.class);
+          break;
+        case VIDEOLIVE:
+          intent= new Intent(this, VideoLiveActivity.class);
           break;
         case VIDEOMEETING:
           intent= new Intent(this, VideoRoomActivity.class);

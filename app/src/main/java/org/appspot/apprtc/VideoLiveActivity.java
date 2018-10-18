@@ -18,11 +18,6 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
-import android.graphics.Outline;
-import android.graphics.Path;
-import android.graphics.PixelFormat;
-import android.graphics.Rect;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
 import android.os.Build;
@@ -31,29 +26,17 @@ import android.os.Handler;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.View;
-import android.view.ViewOutlineProvider;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.WindowManager.LayoutParams;
-import android.widget.LinearLayout;
 import android.widget.Toast;
-import java.io.IOException;
-import java.lang.RuntimeException;
-import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map.Entry;
-import java.util.Set;
-import java.util.Vector;
-import java.util.concurrent.ConcurrentHashMap;
 
-import javax.annotation.Nullable;
 import org.appspot.apprtc.AppRTCAudioManager.AudioDevice;
 import org.appspot.apprtc.AppRTCAudioManager.AudioManagerEvents;
 import org.appspot.apprtc.PeerConnectionClient2.DataChannelParameters;
 import org.appspot.apprtc.PeerConnectionClient2.PeerConnectionParameters;
-import org.appspot.apprtc.janus.JanusConnection;
-import org.appspot.apprtc.janus.JanusHandle;
+import org.appspot.apprtc.janus.JanusCommon.JanusConnectionParameters;
+import org.appspot.apprtc.janus.JanusRTCEvents2;
 import org.json.JSONObject;
 import org.webrtc.Camera1Enumerator;
 import org.webrtc.Camera2Enumerator;
@@ -69,19 +52,20 @@ import org.webrtc.SessionDescription;
 import org.webrtc.StatsReport;
 import org.webrtc.SurfaceViewRenderer;
 import org.webrtc.VideoCapturer;
-import org.webrtc.VideoFileRenderer;
-import org.webrtc.VideoFrame;
-import org.webrtc.VideoSink;
 
-import org.appspot.apprtc.janus.JanusRTCEvents2;
-import org.appspot.apprtc.janus.JanusCommon.JanusConnectionParameters;
+import java.io.IOException;
+import java.math.BigInteger;
+import java.util.Set;
+import java.util.Vector;
+
+import javax.annotation.Nullable;
 
 import static org.appspot.apprtc.janus.JanusUtils.convertJsonToSdp;
 
 /**
  * Activity for JanusVideoRoom setup, call waiting and call view.
  */
-public class VideoRoomActivity extends Activity implements PeerConnectionClient2.PeerConnectionEvents,
+public class VideoLiveActivity extends Activity implements PeerConnectionClient2.PeerConnectionEvents,
         CallFragment.OnCallEvents,
         JanusRTCEvents2{
     private static final String TAG = "VideoRoomActivity";
@@ -166,7 +150,7 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient2
     @Nullable
     private PeerConnectionClient2 PeerConnectionClient2 = null;
     @Nullable
-    private VideoRoomClient videoRoomClient = null;
+    private VideoLiveClient videoLiveClient = null;
     @Nullable
     private AppRTCAudioManager audioManager = null;
 
@@ -338,8 +322,8 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient2
 
         Log.d(TAG, "VIDEO_FILE: '" + intent.getStringExtra(EXTRA_VIDEO_FILE_AS_CAMERA) + "'");
 
-        //Create connection client.Use videoRoomClient to connect to Janus Webrtc Gateway.
-        videoRoomClient = new VideoRoomClient(this);
+        //Create connection client.Use videoLiveClient to connect to Janus Webrtc Gateway.
+        videoLiveClient = new VideoLiveClient(this);
 
         // Create connection parameters.
         String urlParameters = intent.getStringExtra(EXTRA_URLPARAMETERS);
@@ -378,7 +362,7 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient2
 
         // Create peer connection client.
         PeerConnectionClient2 = new PeerConnectionClient2(
-                getApplicationContext(), eglBase, peerConnectionParameters, VideoRoomActivity.this);
+                getApplicationContext(), eglBase, peerConnectionParameters, VideoLiveActivity.this);
         PeerConnectionFactory.Options options = new PeerConnectionFactory.Options();
         PeerConnectionClient2.createPeerConnectionFactory(options);
 
@@ -582,7 +566,7 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient2
     }
 
     private void startCall() {
-        if (videoRoomClient == null) {
+        if (videoLiveClient == null) {
             Log.e(TAG, "AppRTC client is not allocated for a call.");
             return;
         }
@@ -591,7 +575,7 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient2
         JanusConnectionParameters connectionParameters = new JanusConnectionParameters(roomUrl, roomId, userId, maxVideoRoomUsers);
 
         // Start room connection.
-        videoRoomClient.connectToServer(connectionParameters);
+        videoLiveClient.connectToServer(connectionParameters);
 
         // Create and audio manager that will take care of audio routing,
         // audio modes, audio device enumeration etc.
@@ -641,9 +625,9 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient2
             videoFileRenderer = null;
         }
 */
-        if (videoRoomClient != null) {
-            videoRoomClient.disconnectFromServer();
-            videoRoomClient = null;
+        if (videoLiveClient != null) {
+            videoLiveClient.disconnectFromServer();
+            videoLiveClient = null;
         }
         
         if (PeerConnectionClient2 != null) {
@@ -783,13 +767,13 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient2
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (videoRoomClient != null) {
+                if (videoLiveClient != null) {
                     logAndToast("Sending " + sdp.type + ", delay=" + delta + "ms");
                     if(sdp.type.equals(SessionDescription.Type.OFFER)){
-                        videoRoomClient.publisherCreateOffer(handleId, sdp);
+                        videoLiveClient.publisherCreateOffer(handleId, sdp);
                     }
                     else{
-                        videoRoomClient.subscriberCreateAnswer(handleId,sdp);
+                        videoLiveClient.subscriberCreateAnswer(handleId,sdp);
                     }
 
                 }
@@ -838,20 +822,6 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient2
             public void run() {
                 localHandleId = handleId;
 
-                for(int i = 1; i < maxVideoRoomUsers; i++) {
-                    if(positionVector.get(i) == BigInteger.ZERO) {
-                        positionVector.set(i, handleId);
-
-                        SurfaceViewRenderer renderer = surfaceViewRenderers.get(i);
-                        if(i != 0) renderer.setBackground(getResources().getDrawable(R.drawable.border));
-                        renderer.setVisibility(View.VISIBLE);
-                        PeerConnectionClient2.setVideoRender(handleId, renderer);
-                        setRendererMirror(i);
-                        setClickListener(i);
-                        return;
-                    }
-                }
-
                 if(positionVector.get(0) == BigInteger.ZERO) {
                     positionVector.set(0, handleId);
                     PeerConnectionClient2.setVideoRender(handleId, surfaceViewRenderers.get(0));
@@ -886,10 +856,10 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient2
             @Override
             public void run() {
                 if (candidate != null) {
-                    videoRoomClient.trickleCandidate(handleId,candidate);
+                    videoLiveClient.trickleCandidate(handleId,candidate);
                 }
                 else{
-                    videoRoomClient.trickleCandidateComplete(handleId);
+                    videoLiveClient.trickleCandidateComplete(handleId);
                 }
             }
         });
@@ -900,7 +870,7 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient2
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (videoRoomClient != null) {
+                if (videoLiveClient != null) {
                     //WebSocketRTCClient.sendLocalIceCandidateRemovals(candidates);
                 }
             }
