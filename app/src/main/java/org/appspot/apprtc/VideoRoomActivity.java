@@ -273,7 +273,7 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient2
         }
 
         //roomUrl = intent.getStringExtra(EXTRA_SERVERADDR);;
-        roomUrl="ws://23.106.156.204:8188";
+        roomUrl="ws://39.106.100.180:8188";
         if (roomUrl.equals("")) {
             logAndToast(getString(R.string.missing_url));
             Log.e(TAG, "Didn't get any URL in intent!");
@@ -283,6 +283,7 @@ public class VideoRoomActivity extends Activity implements PeerConnectionClient2
         }
 
         // Get Intent parameters.
+        roomUrl=intent.getDataString();
         roomId = intent.getLongExtra(EXTRA_ROOMID, 0);
         roomId=1234;
         Log.d(TAG, "Room ID: " + roomId);

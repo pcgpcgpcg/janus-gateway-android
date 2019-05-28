@@ -90,7 +90,7 @@ import org.webrtc.voiceengine.WebRtcAudioUtils;
  *
  * <p>All public methods are routed to local looper thread.
  * All PeerConnectionEvents callbacks are invoked from the same looper thread.
- * This class is a singleton.
+ * This class is a singleton.CreateOffer
  */
 public class PeerConnectionClient2 {
   public static final String VIDEO_TRACK_ID = "ARDAMSv0";

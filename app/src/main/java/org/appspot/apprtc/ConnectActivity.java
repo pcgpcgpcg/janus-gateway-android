@@ -433,7 +433,7 @@ public class ConnectActivity extends Activity {
 
     // Start AppRTCMobile activity.
     Log.d(TAG, "Connecting to room " + roomId + " at URL " + roomUrl);
-    if (validateUrl(roomUrl)) {
+    if (!roomUrl.isEmpty()) {
       Uri uri = Uri.parse(roomUrl);
       Intent intent;
       switch (type){
